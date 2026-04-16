@@ -1,3 +1,8 @@
+// Package cmd implements the mdminify command-line interface.
+//
+// The CLI reads markdown from files, directories, or stdin, minifies
+// it using [github.com/liminalpurple/mdminify/minify], and writes the
+// result to stdout or back to the source files.
 package cmd
 
 import (
@@ -13,6 +18,19 @@ import (
 
 var version = "dev"
 
+// Run executes the mdminify CLI with the given arguments and I/O streams.
+// It returns an exit code: 0 on success, 1 on error or when -check detects
+// changes.
+//
+// Flags:
+//
+//   - -w: write minified output back to source files (only if changed)
+//   - -check: exit 1 if any file would be modified (for CI / pre-commit)
+//   - -ext: comma-separated file extensions for directory mode (default ".md,.markdown")
+//   - -v: print version
+//
+// With no path arguments, Run reads from stdin and writes to stdout.
+// Directory arguments are walked recursively, processing files matching -ext.
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("mdminify", flag.ContinueOnError)
 	fs.SetOutput(stderr)
