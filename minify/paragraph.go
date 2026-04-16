@@ -41,8 +41,17 @@ func (p *paragraphBuffer) flush() []string {
 			continue
 		}
 
-		// Check if previous line had a hard break.
+		// A line after a heading always starts a new output line —
+		// headings can't have continuation text joined to them.
 		prev := p.lines[i-1]
+		if isATXHeading(prev) {
+			result = append(result, current.String())
+			current.Reset()
+			current.WriteString(trimmed)
+			continue
+		}
+
+		// Check if previous line had a hard break.
 		if hasHardBreak(prev) {
 			result = append(result, current.String())
 			current.Reset()
