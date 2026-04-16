@@ -1,0 +1,432 @@
+package minify
+
+import (
+	"strings"
+	"unicode"
+)
+
+// isBlank returns true if the line is empty or contains only whitespace.
+func isBlank(line string) bool {
+	return strings.TrimSpace(line) == ""
+}
+
+// fenceInfo holds information about a fenced code block opening.
+type fenceInfo struct {
+	char   byte // '`' or '~'
+	count  int  // number of fence characters
+	indent int  // leading spaces (0-3)
+}
+
+// isOpeningFence checks whether a line opens a fenced code block.
+// Returns the fence info and true if it does.
+func isOpeningFence(line string) (fenceInfo, bool) {
+	indent := countLeadingSpaces(line)
+	if indent > 3 {
+		return fenceInfo{}, false
+	}
+	rest := line[indent:]
+	if len(rest) == 0 {
+		return fenceInfo{}, false
+	}
+	ch := rest[0]
+	if ch != '`' && ch != '~' {
+		return fenceInfo{}, false
+	}
+	count := 0
+	for i := 0; i < len(rest) && rest[i] == ch; i++ {
+		count++
+	}
+	if count < 3 {
+		return fenceInfo{}, false
+	}
+	// Backtick fences cannot have backticks in the info string.
+	if ch == '`' && strings.ContainsRune(rest[count:], '`') {
+		return fenceInfo{}, false
+	}
+	return fenceInfo{char: ch, count: count, indent: indent}, true
+}
+
+// isClosingFence checks whether a line closes a fenced code block opened with fi.
+func isClosingFence(line string, fi fenceInfo) bool {
+	indent := countLeadingSpaces(line)
+	if indent > 3 {
+		return false
+	}
+	rest := line[indent:]
+	if len(rest) == 0 {
+		return false
+	}
+	if rest[0] != fi.char {
+		return false
+	}
+	count := 0
+	for i := 0; i < len(rest) && rest[i] == fi.char; i++ {
+		count++
+	}
+	if count < fi.count {
+		return false
+	}
+	// Closing fence may only have trailing spaces.
+	return strings.TrimSpace(rest[count:]) == ""
+}
+
+// isATXHeading returns true if the line is an ATX heading (# ... ######).
+func isATXHeading(line string) bool {
+	s := strings.TrimLeft(line, " ")
+	if len(s) == 0 || s[0] != '#' {
+		return false
+	}
+	i := 0
+	for i < len(s) && s[i] == '#' {
+		i++
+	}
+	if i > 6 {
+		return false
+	}
+	// Must be followed by space or end of line.
+	return i == len(s) || s[i] == ' ' || s[i] == '\t'
+}
+
+// isSetextUnderline returns true if the line is a setext heading underline
+// (one or more = or - characters, with optional leading/trailing spaces).
+func isSetextUnderline(line string) bool {
+	s := strings.TrimSpace(line)
+	if len(s) == 0 {
+		return false
+	}
+	ch := s[0]
+	if ch != '=' && ch != '-' {
+		return false
+	}
+	for i := 1; i < len(s); i++ {
+		if s[i] != ch {
+			return false
+		}
+	}
+	return true
+}
+
+// isThematicBreak returns true if the line is a thematic break (---, ***, ___).
+func isThematicBreak(line string) bool {
+	s := strings.TrimSpace(line)
+	if len(s) < 3 {
+		return false
+	}
+	ch := s[0]
+	if ch != '-' && ch != '*' && ch != '_' {
+		return false
+	}
+	count := 0
+	for _, r := range s {
+		if r == rune(ch) {
+			count++
+		} else if r != ' ' && r != '\t' {
+			return false
+		}
+	}
+	return count >= 3
+}
+
+// isTableRow returns true if the line looks like a table row (starts and ends
+// with |, or contains at least one | that isn't escaped).
+func isTableRow(line string) bool {
+	s := strings.TrimSpace(line)
+	if len(s) == 0 {
+		return false
+	}
+	// GFM tables require leading |.
+	return s[0] == '|'
+}
+
+// isTableSeparator returns true if the line is a table separator row,
+// e.g. |---|:---:|---:|
+func isTableSeparator(line string) bool {
+	cells := splitTableCells(line)
+	if len(cells) == 0 {
+		return false
+	}
+	for _, cell := range cells {
+		c := strings.TrimSpace(cell)
+		if !isSeparatorCell(c) {
+			return false
+		}
+	}
+	return true
+}
+
+// isSeparatorCell returns true if the cell content matches a table separator
+// cell pattern like ---, :---, ---:, or :---:.
+func isSeparatorCell(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	i := 0
+	if s[i] == ':' {
+		i++
+	}
+	dashes := 0
+	for i < len(s) && s[i] == '-' {
+		dashes++
+		i++
+	}
+	if dashes == 0 {
+		return false
+	}
+	if i < len(s) && s[i] == ':' {
+		i++
+	}
+	return i == len(s)
+}
+
+// splitTableCells splits a table row into cells, respecting escaped pipes.
+func splitTableCells(line string) []string {
+	s := strings.TrimSpace(line)
+	// Strip leading and trailing |
+	if len(s) > 0 && s[0] == '|' {
+		s = s[1:]
+	}
+	if len(s) > 0 && s[len(s)-1] == '|' && (len(s) < 2 || s[len(s)-2] != '\\') {
+		s = s[:len(s)-1]
+	}
+	if len(s) == 0 {
+		return nil
+	}
+
+	var cells []string
+	var current strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) && s[i+1] == '|' {
+			current.WriteByte('\\')
+			current.WriteByte('|')
+			i++ // skip the |
+		} else if s[i] == '|' {
+			cells = append(cells, current.String())
+			current.Reset()
+		} else {
+			current.WriteByte(s[i])
+		}
+	}
+	cells = append(cells, current.String())
+	return cells
+}
+
+// isListMarker returns true if the line starts with a list marker (-, *, +, or
+// ordered like 1. / 1)). Allows up to 3 leading spaces.
+func isListMarker(line string) bool {
+	s := line
+	spaces := 0
+	for len(s) > 0 && s[0] == ' ' && spaces < 4 {
+		s = s[1:]
+		spaces++
+	}
+	if spaces > 3 || len(s) == 0 {
+		return false
+	}
+
+	// Unordered: -, *, + followed by space.
+	if (s[0] == '-' || s[0] == '*' || s[0] == '+') && len(s) > 1 && s[1] == ' ' {
+		return true
+	}
+
+	// Ordered: digits followed by . or ) then space.
+	i := 0
+	for i < len(s) && i < 9 && s[i] >= '0' && s[i] <= '9' {
+		i++
+	}
+	if i == 0 || i >= len(s) {
+		return false
+	}
+	if (s[i] == '.' || s[i] == ')') && i+1 < len(s) && s[i+1] == ' ' {
+		return true
+	}
+	return false
+}
+
+// isBlockquotePrefix returns true if the line starts with a blockquote marker.
+func isBlockquotePrefix(line string) bool {
+	s := strings.TrimLeft(line, " ")
+	return len(s) > 0 && s[0] == '>'
+}
+
+// stripBlockquotePrefix removes one level of blockquote prefix from a line.
+// Returns the stripped line and true if a prefix was found.
+func stripBlockquotePrefix(line string) (string, bool) {
+	indent := countLeadingSpaces(line)
+	if indent > 3 {
+		return line, false
+	}
+	rest := line[indent:]
+	if len(rest) == 0 || rest[0] != '>' {
+		return line, false
+	}
+	rest = rest[1:]
+	// Consume one optional space after >.
+	if len(rest) > 0 && rest[0] == ' ' {
+		rest = rest[1:]
+	}
+	return rest, true
+}
+
+// hasHardBreak returns true if the line ends with a hard line break
+// (two or more trailing spaces, or a trailing backslash).
+func hasHardBreak(line string) bool {
+	if len(line) == 0 {
+		return false
+	}
+	if line[len(line)-1] == '\\' {
+		return true
+	}
+	return len(line) >= 2 && line[len(line)-1] == ' ' && line[len(line)-2] == ' '
+}
+
+// isHTMLBlockStart returns true if the line starts an HTML block (type 1-7).
+// We use a simplified check: line starts with < followed by a known block tag
+// or starts with <!-- or <? or <! (uppercase).
+func isHTMLBlockStart(line string) bool {
+	s := strings.TrimLeft(line, " ")
+	if len(s) == 0 || s[0] != '<' {
+		return false
+	}
+	// HTML comments and processing instructions.
+	if strings.HasPrefix(s, "<!--") || strings.HasPrefix(s, "<?") || strings.HasPrefix(s, "<!") {
+		return true
+	}
+	// Block-level HTML tags.
+	lower := strings.ToLower(s)
+	tags := []string{
+		"<address", "<article", "<aside", "<base", "<basefont", "<blockquote",
+		"<body", "<caption", "<center", "<col", "<colgroup", "<dd", "<details",
+		"<dialog", "<dir", "<div", "<dl", "<dt", "<fieldset", "<figcaption",
+		"<figure", "<footer", "<form", "<frame", "<frameset", "<h1", "<h2",
+		"<h3", "<h4", "<h5", "<h6", "<head", "<header", "<hr", "<html",
+		"<iframe", "<legend", "<li", "<link", "<main", "<menu", "<menuitem",
+		"<nav", "<noframes", "<ol", "<optgroup", "<option", "<p", "<param",
+		"<pre", "<script", "<section", "<select", "<source", "<style",
+		"<summary", "<table", "<tbody", "<td", "<template", "<textarea",
+		"<tfoot", "<th", "<thead", "<title", "<tr", "<track", "<ul",
+	}
+	for _, tag := range tags {
+		if strings.HasPrefix(lower, tag) {
+			// Must be followed by space, >, />, or end of line.
+			rest := lower[len(tag):]
+			if len(rest) == 0 || rest[0] == ' ' || rest[0] == '>' || rest[0] == '/' || rest[0] == '\t' {
+				return true
+			}
+		}
+	}
+	// Also match closing tags.
+	if len(lower) > 2 && lower[1] == '/' {
+		for _, tag := range tags {
+			closeTag := "</" + tag[1:]
+			if strings.HasPrefix(lower, closeTag) {
+				rest := lower[len(closeTag):]
+				if len(rest) == 0 || rest[0] == '>' || rest[0] == ' ' || rest[0] == '\t' {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// isLinkRefDef returns true if the line looks like a link reference definition:
+// [label]: url "title"
+func isLinkRefDef(line string) bool {
+	s := strings.TrimLeft(line, " ")
+	if len(s) == 0 || s[0] != '[' {
+		return false
+	}
+	// Find closing ]
+	idx := strings.Index(s, "]:")
+	return idx > 0
+}
+
+// startsNewBlock returns true if the line starts a new block-level element
+// that should not be joined to a preceding paragraph line.
+func startsNewBlock(line string) bool {
+	return isATXHeading(line) ||
+		isThematicBreak(line) ||
+		isHTMLBlockStart(line) ||
+		isListMarker(line) ||
+		isBlockquotePrefix(line) ||
+		isLinkRefDef(line)
+}
+
+// isBoldAsHeading returns true if the line is a single-line paragraph consisting
+// entirely of bold text (e.g. "**Section title:**" or "__Label__"). The bold
+// markers may be followed by a trailing colon or similar punctuation.
+func isBoldAsHeading(line string) bool {
+	s := strings.TrimSpace(line)
+	if len(s) < 5 { // minimum: **x**
+		return false
+	}
+	// Check ** ... ** wrapping.
+	if strings.HasPrefix(s, "**") && strings.HasSuffix(s, "**") {
+		inner := s[2 : len(s)-2]
+		return len(inner) > 0 && !strings.Contains(inner, "**")
+	}
+	// Check __ ... __ wrapping.
+	if strings.HasPrefix(s, "__") && strings.HasSuffix(s, "__") {
+		inner := s[2 : len(s)-2]
+		return len(inner) > 0 && !strings.Contains(inner, "__")
+	}
+	// Also match **text**: or **text**; etc (punctuation after closing marker).
+	for _, marker := range []string{"**", "__"} {
+		if !strings.HasPrefix(s, marker) {
+			continue
+		}
+		// Find the closing marker.
+		closeIdx := strings.LastIndex(s[2:], marker)
+		if closeIdx < 0 {
+			continue
+		}
+		closeIdx += 2 // offset from the start
+		// Everything after the closing marker should be punctuation only.
+		tail := s[closeIdx+2:]
+		if len(tail) > 0 && isTrailingPunct(tail) {
+			return true
+		}
+	}
+	return false
+}
+
+// isTrailingPunct returns true if s consists entirely of common trailing
+// punctuation characters (colon, semicolon, period, exclamation, question).
+func isTrailingPunct(s string) bool {
+	for _, r := range s {
+		switch r {
+		case ':', ';', '.', '!', '?':
+			continue
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// countLeadingSpaces returns the number of leading space characters.
+func countLeadingSpaces(line string) int {
+	n := 0
+	for _, r := range line {
+		if r == ' ' {
+			n++
+		} else {
+			break
+		}
+	}
+	return n
+}
+
+// trimTrailingWhitespace removes trailing spaces/tabs from a line, preserving
+// hard break markers (two trailing spaces or trailing backslash).
+func trimTrailingWhitespace(line string) string {
+	if hasHardBreak(line) {
+		// Preserve the break marker but normalise to exactly two spaces.
+		if line[len(line)-1] == '\\' {
+			return strings.TrimRightFunc(line[:len(line)-1], unicode.IsSpace) + "\\"
+		}
+		trimmed := strings.TrimRight(line, " \t")
+		return trimmed + "  "
+	}
+	return strings.TrimRightFunc(line, unicode.IsSpace)
+}
