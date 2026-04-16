@@ -34,3 +34,12 @@ Regular paragraph.
 **Not bold** and more text.
 
 - This should also keep its blank line.
+
+## Heading without blank line
+Paragraph immediately after heading.
+More paragraph text on
+multiple wrapped lines.
+
+## Heading with blank line
+
+Paragraph after blank line.
