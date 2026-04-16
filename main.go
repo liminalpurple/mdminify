@@ -1,3 +1,6 @@
+// mdminify is a command-line tool that minifies markdown files without
+// changing their rendered meaning. See the [minify] package for the
+// core library.
 package main
 
 import (

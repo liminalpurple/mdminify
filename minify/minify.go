@@ -7,7 +7,16 @@ import (
 )
 
 // Minify reads markdown from r, applies minification transforms, and writes
-// the result to w. The rendered meaning of the markdown is preserved.
+// the result to w. The rendered meaning of the markdown is preserved — the
+// output should produce identical HTML when passed through a CommonMark or
+// GFM renderer.
+//
+// The output always ends with a single newline. CRLF line endings in the
+// input are normalised to LF.
+//
+// Minify processes the input as a stream and does not buffer the entire
+// document in memory, though blockquote content is buffered per-block for
+// recursive processing.
 func Minify(r io.Reader, w io.Writer) error {
 	scanner := bufio.NewScanner(r)
 	m := &minifier{w: w}

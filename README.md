@@ -1,5 +1,8 @@
 # mdminify
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/liminalpurple/mdminify.svg)](https://pkg.go.dev/github.com/liminalpurple/mdminify)
+[![CI](https://github.com/liminalpurple/mdminify/actions/workflows/ci.yml/badge.svg)](https://github.com/liminalpurple/mdminify/actions/workflows/ci.yml)
+
 A small, zero-dependency Go tool that minifies markdown files without changing their rendered
 meaning. It unwraps soft-wrapped paragraphs into single lines, squashes padded tables down to
 minimal width, and collapses unnecessary blank lines.
