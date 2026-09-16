@@ -547,5 +547,11 @@ func trimTrailingWhitespace(line string) string {
 		trimmed := strings.TrimRight(line, " \t")
 		return trimmed + "  "
 	}
-	return strings.TrimRightFunc(line, unicode.IsSpace)
+	trimmed := strings.TrimRightFunc(line, unicode.IsSpace)
+	if strings.HasSuffix(trimmed, "\\") && !strings.HasSuffix(line, "\\") {
+		// Trimming would leave the line ending in a backslash, which is a hard
+		// break. The whitespace after it is what stops it being one.
+		return line
+	}
+	return trimmed
 }
