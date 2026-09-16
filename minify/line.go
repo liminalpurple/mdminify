@@ -242,6 +242,36 @@ func isListMarker(line string) bool {
 	return false
 }
 
+// isEmptyListItem returns true if the line is a list marker with no content
+// after it, e.g. "-", "- ", "1." or "0)". Such an item contains no paragraph,
+// so a following line cannot be a lazy continuation of it.
+func isEmptyListItem(line string) bool {
+	s := strings.TrimRight(line, " \t")
+	indent := countLeadingSpaces(s)
+	if indent > 3 {
+		return false
+	}
+	s = s[indent:]
+	if len(s) == 0 {
+		return false
+	}
+
+	// Unordered: a bare -, * or +.
+	if s[0] == '-' || s[0] == '*' || s[0] == '+' {
+		return len(s) == 1
+	}
+
+	// Ordered: digits followed by . or ) and nothing else.
+	i := 0
+	for i < len(s) && i < 9 && s[i] >= '0' && s[i] <= '9' {
+		i++
+	}
+	if i == 0 || i != len(s)-1 {
+		return false
+	}
+	return s[i] == '.' || s[i] == ')'
+}
+
 // isBlockquotePrefix returns true if the line starts with a blockquote marker.
 func isBlockquotePrefix(line string) bool {
 	s := strings.TrimLeft(line, " ")
@@ -348,6 +378,7 @@ func startsNewBlock(line string) bool {
 		isThematicBreak(line) ||
 		isHTMLBlockStart(line) ||
 		isListMarker(line) ||
+		isEmptyListItem(line) ||
 		isBlockquotePrefix(line) ||
 		isLinkRefDef(line)
 }
