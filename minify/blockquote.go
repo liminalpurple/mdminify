@@ -8,7 +8,7 @@ import (
 // processBlockquote takes a slice of blockquote lines (with > prefix still
 // present), strips one level of prefix, recursively minifies the inner
 // content, then re-adds the > prefix.
-func processBlockquote(lines []string) ([]string, error) {
+func processBlockquote(lines []string, depth int) ([]string, error) {
 	// Strip one level of > prefix.
 	var inner []string
 	stripped := false
@@ -33,15 +33,23 @@ func processBlockquote(lines []string) ([]string, error) {
 	// Recursively minify the inner content.
 	innerText := strings.Join(inner, "\n") + "\n"
 	var buf bytes.Buffer
-	if err := Minify(strings.NewReader(innerText), &buf); err != nil {
+	if err := minifyDepth(strings.NewReader(innerText), &buf, depth+1); err != nil {
 		return nil, err
 	}
 
 	// Re-add > prefix to each output line.
 	output := buf.String()
 	// Remove trailing newline added by Minify for clean splitting.
-	output = strings.TrimRight(output, "\n")
+	output = strings.TrimSuffix(output, "\n")
 	outLines := strings.Split(output, "\n")
+
+	// A blank line ending the quote closes its paragraph. Minify drops a
+	// trailing blank, so it is restored here: without it a following
+	// unprefixed line would be read as a lazy continuation of the quote.
+	if n := len(inner); n > 0 && strings.TrimSpace(inner[n-1]) == "" &&
+		len(outLines) > 0 && outLines[len(outLines)-1] != "" {
+		outLines = append(outLines, "")
+	}
 
 	// Re-apply the block's original indentation. Up to three leading spaces
 	// are significant: they can be what places the quote inside a list item,

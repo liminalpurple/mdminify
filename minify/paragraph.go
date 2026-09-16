@@ -48,9 +48,20 @@ func (p *paragraphBuffer) flush() []string {
 			continue
 		}
 
+		// Two lines that are each ordinary text can still form a block
+		// construct once joined: "**" and "**" become "** **", a thematic
+		// break. Check the result, not only the parts.
+		joined := current.String() + " " + strings.TrimLeft(trimmed, " ")
+		if isThematicBreak(joined) || isSetextUnderline(joined) {
+			result = append(result, current.String())
+			current.Reset()
+			current.WriteString(trimmed)
+			continue
+		}
+
 		// Continuation — join with space.
-		current.WriteByte(' ')
-		current.WriteString(strings.TrimLeft(trimmed, " "))
+		current.Reset()
+		current.WriteString(joined)
 	}
 
 	if current.Len() > 0 {

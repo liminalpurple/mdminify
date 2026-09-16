@@ -2,13 +2,18 @@ package minify
 
 import "strings"
 
-// squashTableRow takes a table row and returns a minified version with
-// trimmed cell content and no padding.
-func squashTableRow(line string) string {
+// squashTableRow takes a table row and returns a minified version with trimmed
+// cell content and no padding.
+//
+// separator selects the delimiter row, whose cells are reduced to the shortest
+// form that preserves alignment. Only that row may be reduced: in a header or
+// body row a cell reading "---" or ":-:" is ordinary text, and rewriting it
+// would change what the table says.
+func squashTableRow(line string, separator bool) string {
 	cells := splitTableCells(line)
 	for i, cell := range cells {
 		c := strings.TrimSpace(cell)
-		if isSeparatorCell(c) {
+		if separator && isSeparatorCell(c) {
 			cells[i] = minimalSeparator(c)
 		} else {
 			cells[i] = c
