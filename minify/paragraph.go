@@ -71,15 +71,12 @@ func (p *paragraphBuffer) flush() []string {
 		result = append(result, current.String())
 	}
 
-	// A hard break on the very last line is meaningless (nothing follows), so
-	// strip trailing whitespace from the final output line — unless it is
-	// indented enough to be code, where that whitespace is content.
-	if len(result) > 0 {
-		last := result[len(result)-1]
-		if indentWidth(last) < 4 && !unparseableListItem(last) {
-			result[len(result)-1] = strings.TrimRight(last, " \t")
-		}
-	}
+	// A hard break on the final line is stripped by renderers anyway, but the
+	// buffer is flushed whenever a paragraph might be ending, not only when it
+	// is: a line that looks like a table row flushes it, and goes back into
+	// the same paragraph if no delimiter row follows. Trimming here would then
+	// remove a break that had content after it, so the line is left alone and
+	// the two spaces are kept.
 
 	p.lines = p.lines[:0]
 	return result
