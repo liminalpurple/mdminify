@@ -11,14 +11,23 @@ import (
 func processBlockquote(lines []string) ([]string, error) {
 	// Strip one level of > prefix.
 	var inner []string
+	stripped := false
 	for _, line := range lines {
-		stripped, ok := stripBlockquotePrefix(line)
+		s, ok := stripBlockquotePrefix(line)
 		if ok {
-			inner = append(inner, stripped)
+			stripped = true
+			inner = append(inner, s)
 		} else {
 			// Lazy continuation — line without > that continues a blockquote paragraph.
 			inner = append(inner, line)
 		}
+	}
+
+	// Recursing without having removed anything would not terminate. Callers
+	// should only pass blocks with at least one prefix, so this is a guard
+	// against a future mismatch rather than an expected path.
+	if !stripped {
+		return lines, nil
 	}
 
 	// Recursively minify the inner content.

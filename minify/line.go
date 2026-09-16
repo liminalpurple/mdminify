@@ -273,8 +273,17 @@ func isEmptyListItem(line string) bool {
 }
 
 // isBlockquotePrefix returns true if the line starts with a blockquote marker.
+//
+// The indent limit matches stripBlockquotePrefix deliberately. Four or more
+// leading spaces make the line indented code, not a quote, and a predicate
+// that accepted what the stripper cannot remove would leave processBlockquote
+// recursing on unchanged input.
 func isBlockquotePrefix(line string) bool {
-	s := strings.TrimLeft(line, " ")
+	indent := countLeadingSpaces(line)
+	if indent > 3 {
+		return false
+	}
+	s := line[indent:]
 	return len(s) > 0 && s[0] == '>'
 }
 
