@@ -45,19 +45,16 @@ var specKnownBroken = map[int]string{
 		"changes how the definition parses",
 	208: "a link reference definition whose label spans several lines, so the closing " +
 		"\"]:\" is not on the line isLinkRefDef inspects",
-	491: "a link destination in angle brackets may not contain a line break, so the text " +
-		"is literal; joining turns the break into a space and makes it a valid link",
-	616: "a raw HTML tag spanning a line break, where the joined form parses differently",
+	616: "a raw HTML tag left open across a line break, where the unclosed tag is masked " +
+		"from hasUnclosedTag by a '>' belonging to a tag nested inside a quoted attribute " +
+		"value; separating them needs HTML tokenisation",
 }
 
-// The four above share a cause: this is a line-based minifier, and an inline
+// The three above share a cause: this is a line-based minifier, and an inline
 // construct that spans a line break can parse differently once the break
-// becomes a space. Catching them would need inline parsing, and the
-// conservative alternative — declining to join around unclosed brackets or
-// angle brackets — would cost joins throughout ordinary prose for constructs
-// that only arise in specification edge cases. Realistic forms of all four,
-// including multi-line img tags and a definition with its title on the next
-// line, are covered in equivalence_test.go and hold.
+// becomes a space. Realistic forms of all three, including multi-line img tags
+// and a definition with its title on the next line, are covered in
+// equivalence_test.go and hold.
 
 // TestCommonMarkSpec checks every example in the CommonMark specification
 // against the HTML-equivalence contract.

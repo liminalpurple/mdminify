@@ -55,3 +55,28 @@ func containsAny(s string, subs []string) bool {
 	}
 	return false
 }
+
+// hasUnclosedTag reports whether the line opens an HTML tag that it does not
+// close. A tag may span a line break, so joining such a line onto the next
+// changes what the tag contains, and can complete a tag that was incomplete.
+//
+// Only a "<" that begins a tag counts, so ordinary prose comparing values with
+// "a < b" still joins.
+func hasUnclosedTag(line string) bool {
+	for i := 0; i < len(line); i++ {
+		if line[i] != '<' {
+			continue
+		}
+		rest := line[i+1:]
+		if rest == "" {
+			continue
+		}
+		if !isASCIILetter(rest[0]) && rest[0] != '/' && rest[0] != '!' && rest[0] != '?' {
+			continue
+		}
+		if !strings.ContainsRune(rest, '>') {
+			return true
+		}
+	}
+	return false
+}
