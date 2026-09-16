@@ -6,15 +6,39 @@ on:
   pull_request:
 
 jobs:
+  # Hooks run against the newest released Go, so anything the latest compiler,
+  # vet or linter objects to is caught here rather than by whoever upgrades
+  # first. This job also runs the conformance suite, which lives in its own
+  # module and is therefore invisible to the root go test.
   prek:
+    name: Hooks (Go stable)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: stable
 
       - uses: j178/prek-action@v2
         env:
           SKIP: go-get-update
+
+  # go.mod declares the oldest Go this module supports, which is a promise to
+  # anyone importing it. An untested floor breaks silently, so build and test
+  # against exactly that version as well.
+  minimum:
+    name: Build (Go ${{ matrix.go }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: ['1.21', 'stable']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+
+      - run: go build ./...
+      - run: go test ./...
