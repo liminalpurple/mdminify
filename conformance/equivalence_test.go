@@ -162,6 +162,7 @@ var cases = map[string]string{
 	"hardbreak-then-pipe":  "0  \n|\n",
 	"pipeless-table":       "0\n-:\n",
 	"para-then-pipeless":   "0\n0\n-:\n",
+	"space-after-slash":    "|\\ \n0\n",
 	"tight-list":           "- item one\n- item two\n",
 	"list-para-continued":  "- item one spans\n  multiple lines.\n- item two.\n",
 	"bold-as-heading":      "**Section**\n\n- item\n",
