@@ -272,6 +272,41 @@ func isEmptyListItem(line string) bool {
 	return s[i] == '.' || s[i] == ')'
 }
 
+// listItemContent returns what follows a list item's marker, and whether line
+// is a list item with content at all. An empty item, or one whose content is
+// indented far enough to be code, reports false.
+func listItemContent(line string) (string, bool) {
+	indent := countLeadingSpaces(line)
+	if indent > 3 {
+		return "", false
+	}
+	s := line[indent:]
+	if len(s) == 0 {
+		return "", false
+	}
+
+	if s[0] == '-' || s[0] == '*' || s[0] == '+' {
+		s = s[1:]
+	} else {
+		i := 0
+		for i < len(s) && i < 9 && s[i] >= '0' && s[i] <= '9' {
+			i++
+		}
+		if i == 0 || i >= len(s) || (s[i] != '.' && s[i] != ')') {
+			return "", false
+		}
+		s = s[i+1:]
+	}
+
+	spaces := countLeadingSpaces(s)
+	if spaces == 0 || spaces >= 5 {
+		// No separating whitespace means no content; five or more means the
+		// content is indented code within the item.
+		return "", false
+	}
+	return s[spaces:], true
+}
+
 // isBlockquotePrefix returns true if the line starts with a blockquote marker.
 //
 // The indent limit matches stripBlockquotePrefix deliberately. Four or more
@@ -380,12 +415,33 @@ func isLinkRefDef(line string) bool {
 	return idx > 0
 }
 
+// isLoneHTMLTag reports whether the line is a single complete HTML tag and
+// nothing else. Such a line opens a CommonMark type 7 HTML block, which
+// isHTMLBlockStart does not detect because it only knows the tag names used by
+// block types 1 to 6.
+//
+// Type 7 cannot interrupt a paragraph, so treating it as a block start
+// everywhere is more conservative than the specification requires. That costs
+// a join inside a paragraph and never costs correctness.
+func isLoneHTMLTag(line string) bool {
+	s := strings.TrimSpace(line)
+	if len(s) < 3 || s[0] != '<' || s[len(s)-1] != '>' {
+		return false
+	}
+	// Anything after the first tag means this is not a lone tag.
+	return strings.IndexByte(s, '>') == len(s)-1
+}
+
 // startsNewBlock returns true if the line starts a new block-level element
 // that should not be joined to a preceding paragraph line.
 func startsNewBlock(line string) bool {
+	if _, ok := isOpeningFence(line); ok {
+		return true
+	}
 	return isATXHeading(line) ||
 		isThematicBreak(line) ||
 		isHTMLBlockStart(line) ||
+		isLoneHTMLTag(line) ||
 		isListMarker(line) ||
 		isEmptyListItem(line) ||
 		isBlockquotePrefix(line) ||
@@ -457,14 +513,37 @@ func countLeadingSpaces(line string) int {
 	return n
 }
 
+// indentWidth returns the visual indentation of the line in columns, expanding
+// tabs to four-column tab stops as CommonMark does. Four columns is the
+// threshold at which a line becomes indented code, so a leading tab counts as
+// much as four spaces.
+func indentWidth(line string) int {
+	w := 0
+	for i := 0; i < len(line); i++ {
+		switch line[i] {
+		case ' ':
+			w++
+		case '\t':
+			w += 4 - w%4
+		default:
+			return w
+		}
+	}
+	return w
+}
+
 // trimTrailingWhitespace removes trailing spaces/tabs from a line, preserving
 // hard break markers (two trailing spaces or trailing backslash).
 func trimTrailingWhitespace(line string) string {
 	if hasHardBreak(line) {
-		// Preserve the break marker but normalise to exactly two spaces.
+		// Whitespace before a trailing backslash is content when the backslash
+		// is literal, which is the case when nothing follows the line, and is
+		// insignificant when it marks a hard break. One line gives no way to
+		// tell, so leave it alone.
 		if line[len(line)-1] == '\\' {
-			return strings.TrimRightFunc(line[:len(line)-1], unicode.IsSpace) + "\\"
+			return line
 		}
+		// Preserve the break marker but normalise to exactly two spaces.
 		trimmed := strings.TrimRight(line, " \t")
 		return trimmed + "  "
 	}

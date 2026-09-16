@@ -119,6 +119,22 @@ var cases = map[string]string{
 	"indented-blockquote": "*\n  >0\n",
 	"code-block-with-gt":  "    > x\n",
 	"code-gt-after-para":  "text\n\n    > x\n\nmore\n",
+	"tab-indented-code":   "\t0\n00\n",
+	"tab-code-after-para": "text\n\n\tcode\n\nmore\n",
+	"literal-backslash":   "a \\\n",
+	"backslash-hardbreak": "a \\\nb\n",
+	"item-holding-head":   "* #\n0\n",
+	"nested-marker-head":  "- - #\ntext\n",
+	"item-then-continue":  "- item one\n  wraps\n",
+	"unclosed-fence":      "```0\n",
+	"fence-in-list-item":  "* ```\n0\n",
+	"html-type7-block":    "<A>\n0\n",
+	"inline-html-joins":   "some <em>text</em> that\nwraps here\n",
+	"table-cell-mismatch": "||0\n|-\n",
+	"table-aligned":       "| a | b |\n| --- | :---: |\n| 1 | 2 |\n",
+	"loose-empty-first":   "-\n\n- 0\n",
+	"setext-then-list":    "Title\n=====\n\n- item\n",
+	"blank-in-code-block": "    0\n\n\n    00\n",
 	"tight-list":          "- item one\n- item two\n",
 	"list-para-continued": "- item one spans\n  multiple lines.\n- item two.\n",
 	"bold-as-heading":     "**Section**\n\n- item\n",
@@ -141,8 +157,9 @@ var cases = map[string]string{
 // name their cause; the test asserts they still fail, so a fix is reported
 // rather than passing silently.
 var knownBroken = map[string]string{
-	"indented-blockquote": "processBlockquote re-adds the '>' prefix at column zero, " +
-		"discarding the leading indent that placed the quote inside a list item",
+	"blank-in-code-block": "blank lines inside an indented code block are content, but " +
+		"emitBlank collapses runs of them without knowing it is inside one; needs the " +
+		"indented-code-block state",
 }
 
 func TestCaseEquivalence(t *testing.T) {
@@ -222,6 +239,14 @@ func FuzzHTMLEquivalence(f *testing.F) {
 		// markdown and goldmark may normalise them inconsistently.
 		if strings.ContainsFunc(src, func(r rune) bool { return r < 32 && r != '\n' && r != '\t' }) {
 			t.Skip()
+		}
+		// mdminify guarantees a single trailing newline, so compare against
+		// input that has one. goldmark parses an unterminated final line
+		// differently from a terminated one — a fence's info string is
+		// dropped, for instance — which would otherwise report that
+		// guarantee as a contract violation.
+		if !strings.HasSuffix(src, "\n") {
+			src += "\n"
 		}
 		var buf strings.Builder
 		if err := minify.Minify(strings.NewReader(src), &buf); err != nil {

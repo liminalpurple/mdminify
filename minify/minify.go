@@ -144,8 +144,11 @@ func (m *minifier) processLine(line string, lineNum int) error {
 			return m.emitBlock(squashTableRow(line))
 		}
 		if m.tableStarted {
-			// We have a buffered header row. Is this the separator?
-			if isTableSeparator(line) {
+			// We have a buffered header row. Is this the separator? GFM
+			// requires the delimiter row to have the same number of cells as
+			// the header; if it does not, this is not a table at all.
+			if isTableSeparator(line) && len(m.tableBuf) > 0 &&
+				len(splitTableCells(line)) == len(splitTableCells(m.tableBuf[0])) {
 				m.inTable = true
 				// Flush the paragraph buffer first (it shouldn't have anything
 				// but just in case).
@@ -247,8 +250,11 @@ func (m *minifier) flushParagraph() error {
 				return err
 			}
 		}
-		// Check if this emitted line makes the last block heading-like.
-		if isATXHeading(l) || isSetextUnderline(l) || isBoldAsHeading(l) {
+		// Check if this emitted line makes the last block heading-like. A
+		// setext underline only counts when something precedes it in the same
+		// run: a lone "-" opens an empty list item instead, and treating it as
+		// a heading would suppress a blank line that makes a list loose.
+		if isATXHeading(l) || (i > 0 && isSetextUnderline(l)) || isBoldAsHeading(l) {
 			m.lastWasHeadingLike = true
 		}
 	}

@@ -25,10 +25,10 @@ func (p *paragraphBuffer) flush() []string {
 	var current strings.Builder
 
 	for i, line := range p.lines {
-		// A line indented four or more spaces may be indented code, where
+		// A line indented four or more columns may be indented code, where
 		// trailing whitespace is content rather than noise. Such a line is
 		// never joined (see canJoin), so it is emitted exactly as it arrived.
-		verbatim := countLeadingSpaces(line) >= 4
+		verbatim := indentWidth(line) >= 4
 		trimmed := trimTrailingWhitespace(line)
 		if verbatim {
 			trimmed = line
@@ -62,7 +62,7 @@ func (p *paragraphBuffer) flush() []string {
 	// indented enough to be code, where that whitespace is content.
 	if len(result) > 0 {
 		last := result[len(result)-1]
-		if countLeadingSpaces(last) < 4 {
+		if indentWidth(last) < 4 {
 			result[len(result)-1] = strings.TrimRight(last, " \t")
 		}
 	}
@@ -90,12 +90,15 @@ func canJoin(prev, line string) bool {
 		return false
 	}
 
-	// The same signals applied to the other end of the join. The single
-	// exception is a list item with content: it holds an open paragraph that
-	// the following line may lazily continue. An empty item holds no
-	// paragraph, so nothing can continue it.
+	// The same signals applied to the other end of the join. A list item is
+	// the one construct that can take a continuation, and then only when its
+	// own content can: an item holding a heading, or holding nothing at all,
+	// has no open paragraph for the next line to continue. Asking the same
+	// question of the item's content terminates, because the content is
+	// always shorter than the line it came from.
 	if startsNewBlock(prev) || isSetextUnderline(prev) {
-		if !isListMarker(prev) || isEmptyListItem(prev) {
+		content, ok := listItemContent(prev)
+		if !ok || content == "" || !canJoin(content, line) {
 			return false
 		}
 	}
@@ -105,10 +108,10 @@ func canJoin(prev, line string) bool {
 		return false
 	}
 
-	// Four or more leading spaces may open an indented code block, or mark a
-	// nested list item whose marker cannot be recognised without tracking
-	// container offsets. Neither is modelled yet, so decline.
-	if countLeadingSpaces(prev) >= 4 || countLeadingSpaces(line) >= 4 {
+	// Four or more columns of indentation may open an indented code block, or
+	// mark a nested list item whose marker cannot be recognised without
+	// tracking container offsets. Neither is modelled yet, so decline.
+	if indentWidth(prev) >= 4 || indentWidth(line) >= 4 {
 		return false
 	}
 
