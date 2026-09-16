@@ -18,8 +18,19 @@ import (
 // document in memory, though blockquote content is buffered per-block for
 // recursive processing.
 func Minify(r io.Reader, w io.Writer) error {
+	return minifyDepth(r, w, 0)
+}
+
+// maxContainerDepth bounds how far blockquotes and list items may nest before
+// their contents are passed through untouched. Each level of recursion strips
+// at least one column, so deeply nested input terminates on its own, but only
+// after a stack frame per level. The limit keeps pathological input, such as a
+// line of thousands of repeated list markers, from exhausting the stack.
+const maxContainerDepth = 64
+
+func minifyDepth(r io.Reader, w io.Writer, depth int) error {
 	scanner := bufio.NewScanner(r)
-	m := &minifier{w: w}
+	m := &minifier{w: w, depth: depth}
 	lineNum := 0
 
 	for scanner.Scan() {
@@ -50,6 +61,7 @@ const (
 type minifier struct {
 	w     io.Writer
 	state state
+	depth int // container nesting depth, for the recursion guard
 
 	fence fenceInfo // current fenced code block info
 	para  paragraphBuffer
@@ -60,6 +72,13 @@ type minifier struct {
 	inTable      bool     // true once separator has been seen
 	tableStarted bool     // true if we've started buffering table rows
 
+	// The table began directly after paragraph text, with no blank line. A
+	// renderer may have started the table earlier than we did, which would
+	// make the row we read as the delimiter one of its body rows. Padding is
+	// trimmed either way, but the delimiter is not reduced, since reducing a
+	// body cell reading "---" would change what the table says.
+	tableAfterParagraph bool
+
 	// Blockquote handling: accumulate consecutive blockquote lines.
 	bqBuf []string
 
@@ -67,6 +86,12 @@ type minifier struct {
 	// lines, which belong after the block rather than inside it, can be
 	// separated from interior ones, which are content.
 	codeBuf []string
+
+	// List handling: the lines of the current item, which are minified as a
+	// unit so that indentation inside it is measured from the item's content
+	// offset rather than from column zero.
+	listBuf    []string
+	listOffset int
 
 	// Track consecutive blank lines.
 	lastWasBlank bool
@@ -78,6 +103,12 @@ type minifier struct {
 	// The last emitted block was heading-like (ATX heading, setext heading,
 	// or bold-as-heading paragraph).
 	lastWasHeadingLike bool
+
+	// That heading-like block was a bold-as-heading paragraph rather than a
+	// real heading. Removing the blank line after a real heading is always
+	// safe; after a paragraph it is only safe if the next block is one that
+	// may interrupt a paragraph, since otherwise it would be absorbed.
+	lastHeadingWasParagraph bool
 
 	// Whether we've emitted any output yet.
 	started bool
@@ -112,7 +143,7 @@ func (m *minifier) processLine(line string, lineNum int) error {
 		return m.emit(line)
 	}
 
-	// --- INDENTED CODE BLOCK ---
+	// --- INDENTED CODE BLOCK (continuation) ---
 	if m.state == stateIndentedCode {
 		// Blank lines and indented lines stay in the block. A blank might be
 		// trailing, so it is buffered rather than emitted, and dropped on exit
@@ -125,7 +156,39 @@ func (m *minifier) processLine(line string, lineNum int) error {
 			return err
 		}
 		// Fall through to process this line normally.
-	} else if indentWidth(line) >= 4 && m.canStartIndentedCode() {
+	}
+
+	// --- LIST ITEM ---
+	// Containers are handled before leaf blocks, because a line's meaning
+	// inside an item is relative to that item's content offset. The item is
+	// buffered and minified as a unit, which is what lets nested structure be
+	// measured correctly rather than from column zero.
+	if len(m.listBuf) > 0 {
+		if isBlank(line) || indentWidth(line) >= m.listOffset {
+			m.listBuf = append(m.listBuf, line)
+			return nil
+		}
+		if err := m.flushList(); err != nil {
+			return err
+		}
+		// Fall through: the line may open the next item, or end the list.
+	}
+	if prefix, ok := parseListItemPrefix(line); ok && m.canStartList() {
+		// A list may only interrupt an open paragraph under narrow conditions.
+		// Where it may not, the line is left to the paragraph buffer, which
+		// passes it through rather than guessing.
+		if len(m.para.lines) == 0 || prefix.interruptsParagraph(line) {
+			if err := m.flushParagraph(); err != nil {
+				return err
+			}
+			m.listOffset = prefix.contentOffset()
+			m.listBuf = append(m.listBuf, line)
+			return nil
+		}
+	}
+
+	// --- INDENTED CODE BLOCK (start) ---
+	if indentWidth(line) >= 4 && m.canStartIndentedCode() {
 		m.state = stateIndentedCode
 		m.codeBuf = append(m.codeBuf, line)
 		return nil
@@ -166,7 +229,7 @@ func (m *minifier) processLine(line string, lineNum int) error {
 	if isTableRow(line) {
 		if m.inTable {
 			// Already confirmed in a table.
-			return m.emitBlock(squashTableRow(line))
+			return m.emitBlock(squashTableRow(line, false))
 		}
 		if m.tableStarted {
 			// We have a buffered header row. Is this the separator? GFM
@@ -183,17 +246,17 @@ func (m *minifier) processLine(line string, lineNum int) error {
 				// Emit the buffered header row(s).
 				for i, r := range m.tableBuf {
 					if i == 0 {
-						if err := m.emitBlock(squashTableRow(r)); err != nil {
+						if err := m.emitBlock(squashTableRow(r, false)); err != nil {
 							return err
 						}
 					} else {
-						if err := m.emit(squashTableRow(r)); err != nil {
+						if err := m.emit(squashTableRow(r, false)); err != nil {
 							return err
 						}
 					}
 				}
 				m.tableBuf = nil
-				return m.emit(squashTableRow(line))
+				return m.emit(squashTableRow(line, !m.tableAfterParagraph))
 			}
 			// Not a separator — these were just lines starting with |.
 			// Move them into the paragraph buffer.
@@ -206,6 +269,7 @@ func (m *minifier) processLine(line string, lineNum int) error {
 			return nil
 		}
 		// Start buffering a potential table.
+		m.tableAfterParagraph = len(m.para.lines) > 0
 		if err := m.flushParagraph(); err != nil {
 			return err
 		}
@@ -255,6 +319,9 @@ func (m *minifier) flushAll() error {
 	if err := m.flushIndentedCode(); err != nil {
 		return err
 	}
+	if err := m.flushList(); err != nil {
+		return err
+	}
 	if err := m.flushBlockquote(); err != nil {
 		return err
 	}
@@ -282,8 +349,20 @@ func (m *minifier) flushParagraph() error {
 		// setext underline only counts when something precedes it in the same
 		// run: a lone "-" opens an empty list item instead, and treating it as
 		// a heading would suppress a blank line that makes a list loose.
-		if isATXHeading(l) || (i > 0 && isSetextUnderline(l)) || isBoldAsHeading(l) {
+		// A setext underline only underlines paragraph text. After a heading,
+		// or after another underline, the same characters are a paragraph of
+		// their own, and treating them as a heading would wrongly suppress the
+		// blank line that follows.
+		setext := i > 0 && isSetextUnderline(l) &&
+			!startsNewBlock(lines[i-1]) && !isSetextUnderline(lines[i-1])
+
+		switch {
+		case isATXHeading(l) || setext:
 			m.lastWasHeadingLike = true
+			m.lastHeadingWasParagraph = false
+		case isBoldAsHeading(l):
+			m.lastWasHeadingLike = true
+			m.lastHeadingWasParagraph = true
 		}
 	}
 	return nil
@@ -296,8 +375,49 @@ func (m *minifier) canStartIndentedCode() bool {
 	return m.state == stateNormal &&
 		len(m.para.lines) == 0 &&
 		len(m.bqBuf) == 0 &&
+		len(m.listBuf) == 0 &&
 		len(m.tableBuf) == 0 &&
 		!m.inTable
+}
+
+// canStartList reports whether a list marker at this point opens an item we
+// can safely take over. Beyond the depth limit the item is left alone, as are
+// markers appearing while another container is being buffered.
+func (m *minifier) canStartList() bool {
+	return m.state == stateNormal &&
+		m.depth < maxContainerDepth &&
+		len(m.bqBuf) == 0 &&
+		len(m.tableBuf) == 0 &&
+		!m.inTable
+}
+
+// flushList minifies the buffered list item and emits it. Trailing blank lines
+// fall outside the item, where they mark the list as loose.
+func (m *minifier) flushList() error {
+	if len(m.listBuf) == 0 {
+		return nil
+	}
+
+	lines, looseBlank, err := processListItem(m.listBuf, m.depth)
+	m.listBuf = nil
+	if err != nil {
+		return err
+	}
+
+	for i, l := range lines {
+		if i == 0 {
+			if err := m.emitBlock(l); err != nil {
+				return err
+			}
+		} else if err := m.emit(l); err != nil {
+			return err
+		}
+	}
+
+	if looseBlank {
+		return m.emitBlank()
+	}
+	return nil
 }
 
 // flushIndentedCode emits a buffered indented code block verbatim. Interior
@@ -352,7 +472,7 @@ func (m *minifier) flushBlockquote() error {
 	if len(m.bqBuf) == 0 {
 		return nil
 	}
-	lines, err := processBlockquote(m.bqBuf)
+	lines, err := processBlockquote(m.bqBuf, m.depth)
 	m.bqBuf = nil
 	if err != nil {
 		return err
@@ -378,7 +498,9 @@ func (m *minifier) emitContent(line string, followsHeading bool) error {
 	// Flush pending blank unless suppressed.
 	if m.pendingBlank {
 		m.pendingBlank = false
-		if !m.lastWasHeadingLike || !followsHeading {
+		suppress := m.lastWasHeadingLike && followsHeading &&
+			(!m.lastHeadingWasParagraph || canInterruptParagraph(line))
+		if !suppress {
 			if _, err := io.WriteString(m.w, "\n"); err != nil {
 				return err
 			}
@@ -392,6 +514,7 @@ func (m *minifier) emitContent(line string, followsHeading bool) error {
 	m.started = true
 	m.lastWasBlank = false
 	m.lastWasHeadingLike = false
+	m.lastHeadingWasParagraph = false
 	_, err := io.WriteString(m.w, line)
 	return err
 }

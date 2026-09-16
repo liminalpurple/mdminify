@@ -138,6 +138,21 @@ var cases = map[string]string{
 	"code-trailing-blanks": "    code\n\n\ntext\n",
 	"code-then-code":       "    a\n\n    b\n",
 	"fence-on-marker-line": "* ```\n \n",
+	"fence-closed-in-item": "- ```\n  code\n  ```\n",
+	"bold-then-empty-item": "**0**\n\n*\n",
+	"bold-then-item":       "**B**\n\n- item\n",
+	"bold-then-ordered-2":  "**B**\n\n2. x\n",
+	"nested-list-wrapped":  "- top spans\n  two lines\n    - nested that\n      wraps\n- second\n",
+	"loose-item-blank":     "* \n\n  0\n",
+	"table-body-dashes":    "| syntax | meaning |\n| --- | --- |\n| --- | break |\n| :-: | centre |\n",
+	"table-after-para":     "0\n-|-|-\n|||0\n|-|-|--\n",
+	"tab-after-marker":     "*\t#\n0\n",
+	"pseudo-setext":        "0\n#\n=\n\n*\n",
+	"join-makes-hr":        "**\n**\n",
+	"join-makes-setext":    "text\n-\n-\n",
+	"empty-item-nested":    "*\n  +\n",
+	"empty-item-text":      "*\n  a\n",
+	"quote-blank-closes":   ">0\n>\n0\n",
 	"tight-list":           "- item one\n- item two\n",
 	"list-para-continued":  "- item one spans\n  multiple lines.\n- item two.\n",
 	"bold-as-heading":      "**Section**\n\n- item\n",
@@ -159,11 +174,7 @@ var cases = map[string]string{
 // knownBroken lists cases that currently violate the contract. Entries must
 // name their cause; the test asserts they still fail, so a fix is reported
 // rather than passing silently.
-var knownBroken = map[string]string{
-	"fence-on-marker-line": "a fence opened on the same line as a list marker is not " +
-		"detected, so its content is not protected; needs list-item containers to " +
-		"recurse into, as processBlockquote already does for quotes",
-}
+var knownBroken = map[string]string{}
 
 func TestCaseEquivalence(t *testing.T) {
 	for name, src := range cases {

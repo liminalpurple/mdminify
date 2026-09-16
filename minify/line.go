@@ -223,8 +223,8 @@ func isListMarker(line string) bool {
 		return false
 	}
 
-	// Unordered: -, *, + followed by space.
-	if (s[0] == '-' || s[0] == '*' || s[0] == '+') && len(s) > 1 && s[1] == ' ' {
+	// Unordered: -, *, + followed by whitespace.
+	if (s[0] == '-' || s[0] == '*' || s[0] == '+') && len(s) > 1 && (s[1] == ' ' || s[1] == '\t') {
 		return true
 	}
 
@@ -236,7 +236,7 @@ func isListMarker(line string) bool {
 	if i == 0 || i >= len(s) {
 		return false
 	}
-	if (s[i] == '.' || s[i] == ')') && i+1 < len(s) && s[i+1] == ' ' {
+	if (s[i] == '.' || s[i] == ')') && i+1 < len(s) && (s[i+1] == ' ' || s[i+1] == '\t') {
 		return true
 	}
 	return false
