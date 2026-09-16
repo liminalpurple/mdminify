@@ -56,6 +56,7 @@ const (
 	stateFrontMatter
 	stateFencedCode
 	stateIndentedCode
+	stateHTMLBlock
 )
 
 type minifier struct {
@@ -64,7 +65,11 @@ type minifier struct {
 	depth int // container nesting depth, for the recursion guard
 
 	fence fenceInfo // current fenced code block info
-	para  paragraphBuffer
+
+	// Closing strings for the HTML block being passed through, for the kinds
+	// that run until one appears rather than until a blank line.
+	htmlEnd []string
+	para    paragraphBuffer
 
 	// Table handling: we buffer potential table rows until we can confirm
 	// we're actually in a table (by seeing a separator row).
@@ -140,6 +145,28 @@ func (m *minifier) processLine(line string, lineNum int) error {
 		}
 		m.fence = fi
 		m.state = stateFencedCode
+		return m.emit(line)
+	}
+
+	// --- HTML BLOCK (kinds 1 to 5) ---
+	// These run until a closing string, passing through blank lines, so they
+	// are tracked rather than handled a line at a time.
+	if m.state == stateHTMLBlock {
+		if containsAny(line, m.htmlEnd) {
+			m.state = stateNormal
+			m.htmlEnd = nil
+		}
+		return m.emit(line)
+	}
+	if terms, ok := htmlBlockTerminators(line); ok {
+		if err := m.flushAll(); err != nil {
+			return err
+		}
+		// The opening line may carry the closing string itself.
+		if !containsAny(line, terms) {
+			m.state = stateHTMLBlock
+			m.htmlEnd = terms
+		}
 		return m.emit(line)
 	}
 
