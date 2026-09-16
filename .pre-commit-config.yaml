@@ -62,9 +62,9 @@ repos:
 
       - id: golangci-lint
         name: golangci-lint
-        entry: sh -c 'go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest && GOWORK=off $(go env GOPATH)/bin/golangci-lint run'
+        entry: sh -c 'GOTOOLCHAIN=$(GOWORK=off go env GOVERSION) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest && GOWORK=off $(go env GOPATH)/bin/golangci-lint run --max-same-issues=0 --max-issues-per-linter=0'
         language: system
-        types: [go]
+        files: '\.go$|^go\.(mod|sum)$'
         pass_filenames: false
 
       - id: go-test
