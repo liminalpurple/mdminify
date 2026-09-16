@@ -44,6 +44,7 @@ const (
 	stateNormal state = iota
 	stateFrontMatter
 	stateFencedCode
+	stateIndentedCode
 )
 
 type minifier struct {
@@ -61,6 +62,11 @@ type minifier struct {
 
 	// Blockquote handling: accumulate consecutive blockquote lines.
 	bqBuf []string
+
+	// Indented code handling: the block is buffered so that trailing blank
+	// lines, which belong after the block rather than inside it, can be
+	// separated from interior ones, which are content.
+	codeBuf []string
 
 	// Track consecutive blank lines.
 	lastWasBlank bool
@@ -104,6 +110,25 @@ func (m *minifier) processLine(line string, lineNum int) error {
 		m.fence = fi
 		m.state = stateFencedCode
 		return m.emit(line)
+	}
+
+	// --- INDENTED CODE BLOCK ---
+	if m.state == stateIndentedCode {
+		// Blank lines and indented lines stay in the block. A blank might be
+		// trailing, so it is buffered rather than emitted, and dropped on exit
+		// if nothing indented follows.
+		if isBlank(line) || indentWidth(line) >= 4 {
+			m.codeBuf = append(m.codeBuf, line)
+			return nil
+		}
+		if err := m.flushIndentedCode(); err != nil {
+			return err
+		}
+		// Fall through to process this line normally.
+	} else if indentWidth(line) >= 4 && m.canStartIndentedCode() {
+		m.state = stateIndentedCode
+		m.codeBuf = append(m.codeBuf, line)
+		return nil
 	}
 
 	// --- BLOCKQUOTE ---
@@ -227,6 +252,9 @@ func (m *minifier) finish() error {
 }
 
 func (m *minifier) flushAll() error {
+	if err := m.flushIndentedCode(); err != nil {
+		return err
+	}
 	if err := m.flushBlockquote(); err != nil {
 		return err
 	}
@@ -257,6 +285,48 @@ func (m *minifier) flushParagraph() error {
 		if isATXHeading(l) || (i > 0 && isSetextUnderline(l)) || isBoldAsHeading(l) {
 			m.lastWasHeadingLike = true
 		}
+	}
+	return nil
+}
+
+// canStartIndentedCode reports whether an indented line at this point opens an
+// indented code block. It cannot interrupt a paragraph, and anything already
+// buffered means some other block is still open.
+func (m *minifier) canStartIndentedCode() bool {
+	return m.state == stateNormal &&
+		len(m.para.lines) == 0 &&
+		len(m.bqBuf) == 0 &&
+		len(m.tableBuf) == 0 &&
+		!m.inTable
+}
+
+// flushIndentedCode emits a buffered indented code block verbatim. Interior
+// blank lines are content and are written as they are; trailing blank lines
+// fall outside the block and are handed to the usual blank handling.
+func (m *minifier) flushIndentedCode() error {
+	if len(m.codeBuf) == 0 {
+		m.state = stateNormal
+		return nil
+	}
+
+	end := len(m.codeBuf)
+	for end > 0 && isBlank(m.codeBuf[end-1]) {
+		end--
+	}
+	trailing := len(m.codeBuf) - end
+	lines := m.codeBuf[:end]
+
+	for _, l := range lines {
+		if err := m.emit(l); err != nil {
+			return err
+		}
+	}
+
+	m.codeBuf = nil
+	m.state = stateNormal
+
+	if trailing > 0 {
+		return m.emitBlank()
 	}
 	return nil
 }
