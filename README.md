@@ -115,6 +115,27 @@ var buf strings.Builder
 err := minify.Minify(reader, &buf)
 ```
 
+## Testing
+
+`go test ./...` covers the minifier itself. The contract that minified output renders to identical
+HTML is checked separately, by the `conformance` package:
+
+```bash
+cd conformance && go test ./...
+```
+
+That suite renders both the input and the minified output through a CommonMark parser and compares
+the results, so it catches whole classes of breakage rather than the specific cases someone thought
+to write down. It lives in its own Go module so that its renderer dependency stays out of
+`mdminify`, which has none. Both suites run from the pre-commit hooks and in CI.
+
+It also carries a fuzz target, which is worth running when changing how lines are classified or
+joined:
+
+```bash
+cd conformance && go test -fuzz FuzzHTMLEquivalence
+```
+
 ## Licence
 
 Apache 2.0 — see [LICENSE](LICENSE).
