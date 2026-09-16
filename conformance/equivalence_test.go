@@ -117,6 +117,8 @@ var cases = map[string]string{
 	"linkref-then-text":   "[0]: http://e.com\ntext\n",
 	"thematic-then-text":  "---\ntext\n",
 	"indented-blockquote": "*\n  >0\n",
+	"code-block-with-gt":  "    > x\n",
+	"code-gt-after-para":  "text\n\n    > x\n\nmore\n",
 	"tight-list":          "- item one\n- item two\n",
 	"list-para-continued": "- item one spans\n  multiple lines.\n- item two.\n",
 	"bold-as-heading":     "**Section**\n\n- item\n",
