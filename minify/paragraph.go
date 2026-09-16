@@ -26,9 +26,12 @@ func (p *paragraphBuffer) flush() []string {
 
 	for i, line := range p.lines {
 		// A line indented four or more columns may be indented code, where
-		// trailing whitespace is content rather than noise. Such a line is
+		// trailing whitespace is content rather than noise. So may a list item
+		// we decline to parse: a marker followed by a tab puts its content at
+		// a column we are not tracking, which can be far enough past the
+		// item's content offset to be code within it. Either way the line is
 		// never joined (see canJoin), so it is emitted exactly as it arrived.
-		verbatim := indentWidth(line) >= 4
+		verbatim := indentWidth(line) >= 4 || unparseableListItem(line)
 		trimmed := trimTrailingWhitespace(line)
 		if verbatim {
 			trimmed = line
@@ -73,7 +76,7 @@ func (p *paragraphBuffer) flush() []string {
 	// indented enough to be code, where that whitespace is content.
 	if len(result) > 0 {
 		last := result[len(result)-1]
-		if indentWidth(last) < 4 {
+		if indentWidth(last) < 4 && !unparseableListItem(last) {
 			result[len(result)-1] = strings.TrimRight(last, " \t")
 		}
 	}
@@ -134,4 +137,15 @@ func canJoin(prev, line string) bool {
 	}
 
 	return true
+}
+
+// unparseableListItem reports whether the line opens a list item that
+// parseListItemPrefix declines to take over, which today means a marker
+// followed by a tab rather than a space.
+func unparseableListItem(line string) bool {
+	if !isListMarker(line) {
+		return false
+	}
+	_, ok := parseListItemPrefix(line)
+	return !ok
 }
