@@ -73,3 +73,12 @@ repos:
         language: system
         types: [go]
         pass_filenames: false
+
+      # The conformance suite is a separate module, so it is invisible to the
+      # root `go test ./...` above and needs running explicitly.
+      - id: go-test-conformance
+        name: go test (conformance)
+        entry: sh -c 'cd conformance && GOWORK=off go test ./...'
+        language: system
+        files: '\.go$|^go\.(mod|sum)$|^conformance/'
+        pass_filenames: false
