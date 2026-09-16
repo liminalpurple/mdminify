@@ -57,8 +57,19 @@ func TestParagraphFlush(t *testing.T) {
 			want:  []string{"text", "> quote"},
 		},
 		{
-			name:  "trailing whitespace stripped",
+			// Three trailing spaces are a hard break, normalised to two. The
+			// break is not removed even though nothing follows it here: the
+			// buffer is flushed whenever a paragraph might be ending, so it
+			// cannot tell this case from one that continues after the flush.
+			// A renderer drops a trailing break anyway, so keeping it costs
+			// two bytes and is never wrong.
+			name:  "hard break normalised, not removed",
 			lines: []string{"hello   "},
+			want:  []string{"hello  "},
+		},
+		{
+			name:  "trailing whitespace stripped when not a break",
+			lines: []string{"hello "},
 			want:  []string{"hello"},
 		},
 	}

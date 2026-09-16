@@ -159,6 +159,7 @@ var cases = map[string]string{
 	"html-multiline-tag":   "<img src=\"a.png\"\n     alt=\"a picture\">\n",
 	"linkref-title-next":   "[foo]: /url\n  \"title\"\n\n[foo]\n",
 	"tab-marker-code":      "*\t\t0 \n",
+	"hardbreak-then-pipe":  "0  \n|\n",
 	"tight-list":           "- item one\n- item two\n",
 	"list-para-continued":  "- item one spans\n  multiple lines.\n- item two.\n",
 	"bold-as-heading":      "**Section**\n\n- item\n",
