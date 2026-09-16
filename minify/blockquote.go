@@ -43,12 +43,18 @@ func processBlockquote(lines []string) ([]string, error) {
 	output = strings.TrimRight(output, "\n")
 	outLines := strings.Split(output, "\n")
 
+	// Re-apply the block's original indentation. Up to three leading spaces
+	// are significant: they can be what places the quote inside a list item,
+	// and without container tracking there is no way to tell that case from a
+	// top-level quote whose indent could safely be dropped.
+	indent := strings.Repeat(" ", countLeadingSpaces(lines[0]))
+
 	var result []string
 	for _, ol := range outLines {
 		if ol == "" {
-			result = append(result, ">")
+			result = append(result, indent+">")
 		} else {
-			result = append(result, "> "+ol)
+			result = append(result, indent+"> "+ol)
 		}
 	}
 	return result, nil
