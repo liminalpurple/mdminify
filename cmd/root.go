@@ -45,7 +45,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 
 	if *showVersion {
-		fmt.Fprintf(stdout, "mdminify %s\n", version)
+		_, _ = fmt.Fprintf(stdout, "mdminify %s\n", version)
 		return 0
 	}
 
@@ -55,11 +55,11 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	// No paths — read stdin, write stdout.
 	if len(paths) == 0 {
 		if *write {
-			fmt.Fprintln(stderr, "mdminify: -w cannot be used with stdin")
+			_, _ = fmt.Fprintln(stderr, "mdminify: -w cannot be used with stdin")
 			return 1
 		}
 		if err := minify.Minify(stdin, stdout); err != nil {
-			fmt.Fprintf(stderr, "mdminify: %v\n", err)
+			_, _ = fmt.Fprintf(stderr, "mdminify: %v\n", err)
 			return 1
 		}
 		return 0
@@ -71,7 +71,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	for _, p := range paths {
 		info, err := os.Stat(p)
 		if err != nil {
-			fmt.Fprintf(stderr, "mdminify: %v\n", err)
+			_, _ = fmt.Fprintf(stderr, "mdminify: %v\n", err)
 			errored = true
 			continue
 		}
@@ -88,7 +88,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 				}
 				c, e := processFile(path, *write, *check, stdout)
 				if e != nil {
-					fmt.Fprintf(stderr, "mdminify: %s: %v\n", path, e)
+					_, _ = fmt.Fprintf(stderr, "mdminify: %s: %v\n", path, e)
 					errored = true
 				}
 				if c {
@@ -97,13 +97,13 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 				return nil
 			})
 			if err != nil {
-				fmt.Fprintf(stderr, "mdminify: %v\n", err)
+				_, _ = fmt.Fprintf(stderr, "mdminify: %v\n", err)
 				errored = true
 			}
 		} else {
 			c, e := processFile(p, *write, *check, stdout)
 			if e != nil {
-				fmt.Fprintf(stderr, "mdminify: %s: %v\n", p, e)
+				_, _ = fmt.Fprintf(stderr, "mdminify: %s: %v\n", p, e)
 				errored = true
 			}
 			if c {
@@ -138,7 +138,7 @@ func processFile(path string, write, check bool, stdout io.Writer) (changed bool
 	}
 
 	if check {
-		fmt.Fprintf(stdout, "%s\n", path)
+		_, _ = fmt.Fprintf(stdout, "%s\n", path)
 		return true, nil
 	}
 

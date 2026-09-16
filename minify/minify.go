@@ -302,7 +302,7 @@ func (m *minifier) emitContent(line string, followsHeading bool) error {
 	// Flush pending blank unless suppressed.
 	if m.pendingBlank {
 		m.pendingBlank = false
-		if !(m.lastWasHeadingLike && followsHeading) {
+		if !m.lastWasHeadingLike || !followsHeading {
 			if _, err := io.WriteString(m.w, "\n"); err != nil {
 				return err
 			}
