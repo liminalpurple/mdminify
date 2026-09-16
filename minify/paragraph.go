@@ -133,6 +133,12 @@ func canJoin(prev, line string) bool {
 		return false
 	}
 
+	// A single-column table needs no pipe at all: "0" over "-:" is a table
+	// with one right-aligned column.
+	if isTableSeparator(line) {
+		return false
+	}
+
 	return true
 }
 
