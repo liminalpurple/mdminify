@@ -1,0 +1,228 @@
+// Package conformance verifies mdminify's core contract: that minified output
+// renders to byte-identical HTML.
+//
+// It lives in its own module so that the goldmark renderer it depends on never
+// enters the mdminify module, which is deliberately zero-dependency.
+//
+// Run it explicitly, from this directory:
+//
+//	go test ./...
+//	go test -run Fuzz -fuzz FuzzHTMLEquivalence
+package conformance
+
+import (
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"testing"
+
+	"github.com/liminalpurple/mdminify/minify"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
+)
+
+// md renders with GFM enabled, because mdminify handles GFM tables.
+var md = goldmark.New(goldmark.WithExtensions(extension.GFM))
+
+// render converts markdown source to normalised HTML.
+func render(t *testing.T, src string) string {
+	t.Helper()
+	var buf strings.Builder
+	if err := md.Convert([]byte(src), &buf); err != nil {
+		t.Fatalf("rendering markdown: %v", err)
+	}
+	out, err := normaliseHTML(buf.String())
+	if err != nil {
+		t.Fatalf("normalising HTML: %v", err)
+	}
+	return out
+}
+
+// minified runs src through mdminify.
+func minified(t *testing.T, src string) string {
+	t.Helper()
+	var buf strings.Builder
+	if err := minify.Minify(strings.NewReader(src), &buf); err != nil {
+		t.Fatalf("Minify error: %v", err)
+	}
+	return buf.String()
+}
+
+// equalHTML reports whether two markdown sources render to the same
+// normalised HTML.
+func equalHTML(t *testing.T, a, b string) bool {
+	t.Helper()
+	return render(t, a) == render(t, b)
+}
+
+// checkEquivalent asserts that minifying src does not change its rendered HTML.
+// It returns true if the contract held.
+func checkEquivalent(t *testing.T, src string) bool {
+	t.Helper()
+	got := minified(t, src)
+	wantHTML := render(t, src)
+	gotHTML := render(t, got)
+	if gotHTML == wantHTML {
+		return true
+	}
+	t.Logf("--- input ---\n%s\n--- minified ---\n%s\n--- want HTML ---\n%s\n--- got HTML ---\n%s",
+		src, got, wantHTML, gotHTML)
+	return false
+}
+
+// TestTestdataEquivalence checks every testdata input, and each committed
+// golden file, against the HTML-equivalence contract.
+func TestTestdataEquivalence(t *testing.T) {
+	inputs, err := filepath.Glob("../testdata/*.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inputs) == 0 {
+		t.Fatal("no testdata files found")
+	}
+
+	for _, path := range inputs {
+		name := strings.TrimSuffix(filepath.Base(path), ".md")
+		t.Run(name, func(t *testing.T) {
+			src, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("reading %s: %v", path, err)
+			}
+			if !checkEquivalent(t, string(src)) {
+				t.Errorf("minifying %s changed the rendered HTML", filepath.Base(path))
+			}
+		})
+	}
+}
+
+// cases covers constructs that golden files do not currently reach. Keep the
+// names stable: knownBroken refers to them.
+var cases = map[string]string{
+	"nested-list-4-space": "- top level\n    - nested item\n        - deeper item\n- second top\n",
+	"nested-list-2-space": "- top level\n  - nested item\n- second top\n",
+	"nested-list-ordered": "1. ordered\n    1. nested under ordered\n2. second\n",
+	"indented-code":       "Some text.\n\n    code line one\n    code line two\n\nAfter.\n",
+	"indented-code-first": "    code line one\n    code line two\n",
+	"lazy-continuation":   "Some text.\n    still the same paragraph\n",
+	"loose-list":          "- item one\n\n- item two\n",
+	"tight-list":          "- item one\n- item two\n",
+	"list-para-continued": "- item one spans\n  multiple lines.\n- item two.\n",
+	"bold-as-heading":     "**Section**\n\n- item\n",
+	"triple-bold-heading": "***Section***\n\n- item\n",
+	"italic-not-heading":  "*emphasis*\n\n- item\n",
+	"setext-heading":      "Title\n=====\n\nBody text.\n",
+	"thematic-break":      "Above.\n\n***\n\nBelow.\n",
+	"fenced-code-indent":  "- item\n\n  ```go\n  x := 1\n  ```\n",
+	"blockquote-nested":   "> outer\n> > inner wrapping\n> > across lines\n",
+	"hard-break-spaces":   "line one  \nline two\n",
+	"hard-break-slash":    "line one\\\nline two\n",
+	"table-basic":         "| a | b |\n| --- | --- |\n| 1 | 2 |\n",
+	"table-no-lead-pipe":  "a | b\n--- | ---\n1 | 2\n",
+	"table-bare-minimal":  "a\n-|\n",
+	"html-block":          "<div>\n  <p>raw</p>\n</div>\n",
+	"link-ref-def":        "[a]: http://example.com\n\nSee [a].\n",
+}
+
+// knownBroken lists cases that currently violate the contract. They are
+// documented failures, not accepted behaviour: each is a bug with a fix
+// planned. The test asserts they still fail, so that fixing one is reported
+// rather than passing silently.
+var knownBroken = map[string]string{
+	"nested-list-4-space": "isListMarker caps at 3 leading spaces, so the nested " +
+		"marker is not recognised and the paragraph buffer joins it (needs container offsets)",
+	"nested-list-ordered": "same cause as nested-list-4-space",
+	"indented-code":       "no indented-code-block state; lines are joined as a paragraph",
+	"indented-code-first": "same cause as indented-code",
+	"table-no-lead-pipe": "isTableRow requires a leading '|', but GFM permits header and " +
+		"delimiter rows without one, so the table is joined into a paragraph (found by fuzzing)",
+	"table-bare-minimal": "same cause as table-no-lead-pipe",
+}
+
+func TestCaseEquivalence(t *testing.T) {
+	for name, src := range cases {
+		t.Run(name, func(t *testing.T) {
+			ok := checkEquivalent(t, src)
+			reason, broken := knownBroken[name]
+
+			switch {
+			case ok && broken:
+				t.Errorf("case is in knownBroken but now passes — remove it from the map.\nrecorded cause: %s", reason)
+			case !ok && broken:
+				t.Logf("known failure: %s", reason)
+			case !ok:
+				t.Errorf("minifying this input changed the rendered HTML")
+			}
+		})
+	}
+}
+
+// TestKnownBrokenNamesExist guards against a case being renamed or deleted
+// while leaving a stale entry in knownBroken.
+func TestKnownBrokenNamesExist(t *testing.T) {
+	for name := range knownBroken {
+		if _, ok := cases[name]; !ok {
+			t.Errorf("knownBroken refers to %q, which is not in cases", name)
+		}
+	}
+}
+
+// TestIdempotent checks that minifying twice equals minifying once. A transform
+// that keeps changing the document cannot be safe to run in a pre-commit hook.
+func TestIdempotent(t *testing.T) {
+	inputs, err := filepath.Glob("../testdata/*.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range inputs {
+		name := strings.TrimSuffix(filepath.Base(path), ".md")
+		t.Run(name, func(t *testing.T) {
+			src, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("reading %s: %v", path, err)
+			}
+			once := minified(t, string(src))
+			twice := minified(t, once)
+			if once != twice {
+				t.Errorf("not idempotent\n--- once ---\n%s\n--- twice ---\n%s", once, twice)
+			}
+		})
+	}
+}
+
+// FuzzHTMLEquivalence explores the same contract over generated input.
+func FuzzHTMLEquivalence(f *testing.F) {
+	// Seed only with cases that currently hold. Entries removed from
+	// knownBroken rejoin the corpus automatically.
+	names := make([]string, 0, len(cases))
+	for name := range cases {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if _, broken := knownBroken[name]; !broken {
+			f.Add(cases[name])
+		}
+	}
+	inputs, _ := filepath.Glob("../testdata/*.md")
+	for _, path := range inputs {
+		if src, err := os.ReadFile(path); err == nil {
+			f.Add(string(src))
+		}
+	}
+
+	f.Fuzz(func(t *testing.T, src string) {
+		// Control characters other than newline and tab are not meaningful
+		// markdown and goldmark may normalise them inconsistently.
+		if strings.ContainsFunc(src, func(r rune) bool { return r < 32 && r != '\n' && r != '\t' }) {
+			t.Skip()
+		}
+		var buf strings.Builder
+		if err := minify.Minify(strings.NewReader(src), &buf); err != nil {
+			t.Fatalf("Minify error: %v", err)
+		}
+		if !equalHTML(t, src, buf.String()) {
+			t.Errorf("HTML changed\n--- input ---\n%q\n--- minified ---\n%q", src, buf.String())
+		}
+	})
+}
