@@ -42,7 +42,12 @@ func (p *paragraphBuffer) flush() []string {
 			continue
 		}
 
-		if !canJoin(p.lines[i-1], line) {
+		// A line with a delimiter row after it is a table header, so it must
+		// start its own line. canJoin sees only the two lines being joined and
+		// cannot look ahead, so the check belongs here.
+		header := i+1 < len(p.lines) && isTableSeparator(p.lines[i+1])
+
+		if header || !canJoin(p.lines[i-1], line) {
 			// Not a warranted join: emit what we have and start again,
 			// leaving this line exactly as it arrived.
 			result = append(result, current.String())
