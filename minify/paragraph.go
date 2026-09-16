@@ -139,6 +139,12 @@ func canJoin(prev, line string) bool {
 		return false
 	}
 
+	// An HTML tag may span a line break. Joining would change what the tag
+	// contains, and can complete one that was left open.
+	if hasUnclosedTag(prev) {
+		return false
+	}
+
 	return true
 }
 
