@@ -139,8 +139,9 @@ func canJoin(prev, line string) bool {
 	}
 
 	// A single-column table needs no pipe at all: "0" over "-:" is a table
-	// with one right-aligned column.
-	if isTableSeparator(line) {
+	// with one right-aligned column. Either end matters — a delimiter row
+	// before the line means the line is a body row of that table.
+	if isTableSeparator(line) || isTableSeparator(prev) {
 		return false
 	}
 

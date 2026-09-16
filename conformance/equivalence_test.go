@@ -163,6 +163,7 @@ var cases = map[string]string{
 	"pipeless-table":       "0\n-:\n",
 	"para-then-pipeless":   "0\n0\n-:\n",
 	"space-after-slash":    "|\\ \n0\n",
+	"pipeless-table-body":  "0\n-:\n0\n",
 	"tight-list":           "- item one\n- item two\n",
 	"list-para-continued":  "- item one spans\n  multiple lines.\n- item two.\n",
 	"bold-as-heading":      "**Section**\n\n- item\n",
