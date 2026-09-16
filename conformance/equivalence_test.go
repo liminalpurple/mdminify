@@ -106,6 +106,17 @@ var cases = map[string]string{
 	"indented-code-first": "    code line one\n    code line two\n",
 	"lazy-continuation":   "Some text.\n    still the same paragraph\n",
 	"loose-list":          "- item one\n\n- item two\n",
+	"empty-list-item":     "-\ntext\n",
+	"empty-list-ordered":  "0)\n0000\n",
+	"empty-list-trailing": "- \ntext\n",
+	"list-lazy-continue":  "- item\ntext\n",
+	"empty-item-after":    "* 0\n0)\n",
+	"indented-code-trail": "    code line  \n",
+	"code-then-para":      "    code\ntext\n",
+	"setext-then-text":    "Title\n=====\ntext\n",
+	"linkref-then-text":   "[0]: http://e.com\ntext\n",
+	"thematic-then-text":  "---\ntext\n",
+	"indented-blockquote": "*\n  >0\n",
 	"tight-list":          "- item one\n- item two\n",
 	"list-para-continued": "- item one spans\n  multiple lines.\n- item two.\n",
 	"bold-as-heading":     "**Section**\n\n- item\n",
@@ -124,19 +135,12 @@ var cases = map[string]string{
 	"link-ref-def":        "[a]: http://example.com\n\nSee [a].\n",
 }
 
-// knownBroken lists cases that currently violate the contract. They are
-// documented failures, not accepted behaviour: each is a bug with a fix
-// planned. The test asserts they still fail, so that fixing one is reported
+// knownBroken lists cases that currently violate the contract. Entries must
+// name their cause; the test asserts they still fail, so a fix is reported
 // rather than passing silently.
 var knownBroken = map[string]string{
-	"nested-list-4-space": "isListMarker caps at 3 leading spaces, so the nested " +
-		"marker is not recognised and the paragraph buffer joins it (needs container offsets)",
-	"nested-list-ordered": "same cause as nested-list-4-space",
-	"indented-code":       "no indented-code-block state; lines are joined as a paragraph",
-	"indented-code-first": "same cause as indented-code",
-	"table-no-lead-pipe": "isTableRow requires a leading '|', but GFM permits header and " +
-		"delimiter rows without one, so the table is joined into a paragraph (found by fuzzing)",
-	"table-bare-minimal": "same cause as table-no-lead-pipe",
+	"indented-blockquote": "processBlockquote re-adds the '>' prefix at column zero, " +
+		"discarding the leading indent that placed the quote inside a list item",
 }
 
 func TestCaseEquivalence(t *testing.T) {
