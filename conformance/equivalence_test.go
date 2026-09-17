@@ -114,6 +114,10 @@ var cases = map[string]string{
 	"bq-tab-quote":         ">>\t> q\n",
 	// A hard break at the end of a list item, lazily continued from outside it.
 	"list-item-hard-break": "* 0  \n0\n",
+	// A lazy continuation splits a quote's buffer, leaving the blank line that
+	// separates its paragraphs at the start of the second block.
+	"quote-lazy-split":    ">0\n0\n>\n>00\n",
+	"quote-leading-blank": ">\n> text\n",
 	// A lazy continuation keeps the list open, so a blank before the next
 	// marker still marks it loose.
 	"lazy-list-loose":       "0\n- 0\n0\n=\n\n-\n",

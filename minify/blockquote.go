@@ -63,6 +63,18 @@ func processBlockquote(lines []string, depth int, inListItem bool) ([]string, er
 		outLines = append(outLines, "")
 	}
 
+	// A blank line opening the quote closes the paragraph of the quote this
+	// block was split away from. A lazy continuation ends one buffer and
+	// starts another mid-quote, so ">0 / 0 / > / >00" arrives here as just
+	// "> / >00" — one quote holding two paragraphs, whose separator is that
+	// leading blank. Minify drops a blank at the start of a document, which
+	// would merge the paragraphs, so it is restored for the same reason the
+	// trailing one is.
+	if len(inner) > 0 && strings.TrimSpace(inner[0]) == "" &&
+		len(outLines) > 0 && outLines[0] != "" {
+		outLines = append([]string{""}, outLines...)
+	}
+
 	// Re-apply the block's original indentation. Up to three leading spaces
 	// are significant: they can be what places the quote inside a list item,
 	// and without container tracking there is no way to tell that case from a
