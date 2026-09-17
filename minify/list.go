@@ -125,6 +125,21 @@ func processListItem(lines []string, depth int) ([]string, bool, error) {
 	}
 	offset := prefix.contentOffset()
 
+	// A tab's width depends on the column it lands in, so dedenting an item's
+	// lines to the content offset and re-indenting them moves any tab in that
+	// indentation to a different column, changing how much indentation it
+	// represents. The absolute columns are not tracked inside a container, so
+	// an item indented with tabs is passed through untouched — the same
+	// treatment processBlockquote gives a tab in its own prefix.
+	if hasTabInPrefix(lines[0][prefix.indent+len(prefix.marker):]) {
+		return lines, false, nil
+	}
+	for _, line := range lines[1:] {
+		if hasTabInPrefix(line) {
+			return lines, false, nil
+		}
+	}
+
 	inner := make([]string, 0, len(lines))
 	first := lines[0]
 	if len(first) > offset {
