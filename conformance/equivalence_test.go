@@ -114,6 +114,9 @@ var cases = map[string]string{
 	"bq-tab-quote":         ">>\t> q\n",
 	// A hard break at the end of a list item, lazily continued from outside it.
 	"list-item-hard-break": "* 0  \n0\n",
+	// A nested marker hides an item's indented code from a single-level check.
+	"list-code-nested":      ">\n* *     0 \n",
+	"list-code-nested-deep": ">\n* * *     0 \n",
 	// Blank lines inside an indented code block are content, including when a
 	// heading precedes the block.
 	"code-blanks-after-atx":  "#\n    0\n\n\n    0\n",
