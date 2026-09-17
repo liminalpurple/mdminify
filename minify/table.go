@@ -13,9 +13,18 @@ func squashTableRow(line string, separator bool) string {
 	cells := splitTableCells(line)
 	for i, cell := range cells {
 		c := strings.TrimSpace(cell)
-		if separator && isSeparatorCell(c) {
+		switch {
+		case separator && isSeparatorCell(c):
 			cells[i] = minimalSeparator(c)
-		} else {
+		case c == "" && cell != "":
+			// A cell holding only whitespace is not the same as one holding
+			// nothing: "|  |" over "|-:|" renders right-aligned, while "||"
+			// over the same delimiter row loses the alignment. One space is
+			// kept so the cell stays non-empty, and a cell that arrived truly
+			// empty is left that way rather than gaining a space, which would
+			// change the rendering in the other direction.
+			cells[i] = " "
+		default:
 			cells[i] = c
 		}
 	}
