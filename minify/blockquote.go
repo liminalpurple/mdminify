@@ -1,29 +1,16 @@
 package minify
 
-import (
-	"bytes"
-	"strings"
-)
+import "strings"
 
 // processBlockquote takes a slice of blockquote lines (with > prefix still
 // present), strips one level of prefix, recursively minifies the inner
 // content, then re-adds the > prefix.
 func processBlockquote(lines []string, depth int, inListItem bool) ([]string, error) {
-	// Strip one level of > prefix.
-	// A tab's width depends on the column it lands in, so rewriting any marker
-	// ahead of one changes how much indentation it represents: ">> \t0" is a
-	// paragraph, while the normalised "> > \t0" pushes the tab past column 4
-	// and makes it an indented code block. Expanding the tab would need the
-	// absolute column, which is not tracked inside a container, so a quote
-	// whose prefix contains a tab is passed through untouched instead. This is
-	// checked across the whole block before anything is rewritten, because the
-	// outer level moves the column just as the inner ones do.
-	for _, line := range lines {
-		if hasTabInPrefix(line) {
-			return lines, nil
-		}
+	if containerTabsUnsafe(lines, 0) {
+		return lines, nil
 	}
 
+	// Strip one level of > prefix.
 	var inner []string
 	stripped := false
 	for _, line := range lines {
@@ -37,36 +24,22 @@ func processBlockquote(lines []string, depth int, inListItem bool) ([]string, er
 		}
 	}
 
-	// Recursing without having removed anything would not terminate. Callers
-	// should only pass blocks with at least one prefix, so this is a guard
-	// against a future mismatch rather than an expected path.
+	// Rule 2: recursing without having removed anything would not terminate.
+	// Callers should only pass blocks with at least one prefix, so this is a
+	// guard against a future mismatch rather than an expected path.
 	if !stripped {
 		return lines, nil
 	}
 
-	// Recursively minify the inner content.
-	innerText := strings.Join(inner, "\n") + "\n"
-	var buf bytes.Buffer
-	if err := minifyDepth(strings.NewReader(innerText), &buf, depth+1, inListItem); err != nil {
+	outLines, err := minifyInner(inner, depth, inListItem)
+	if err != nil {
 		return nil, err
 	}
-
-	// Re-add > prefix to each output line.
-	output := buf.String()
-	// Remove trailing newline added by Minify for clean splitting.
-	output = strings.TrimSuffix(output, "\n")
-	outLines := strings.Split(output, "\n")
 
 	// A blank line ending the quote closes its paragraph. Minify drops a
 	// trailing blank, so it is restored here: without it a following
 	// unprefixed line would be read as a lazy continuation of the quote.
-	//
-	// Inside an unclosed fence that line is code content rather than a blank
-	// closing the quote, and Minify keeps it, so restoring one would add a
-	// line that was never there. processListItem draws the same distinction.
-	if n := len(inner); n > 0 && !endsInOpenFence(inner) &&
-		strings.TrimSpace(inner[n-1]) == "" &&
-		len(outLines) > 0 && outLines[len(outLines)-1] != "" {
+	if containerEndsInBlank(inner) && len(outLines) > 0 && outLines[len(outLines)-1] != "" {
 		outLines = append(outLines, "")
 	}
 
@@ -76,6 +49,7 @@ func processBlockquote(lines []string, depth int, inListItem bool) ([]string, er
 	// top-level quote whose indent could safely be dropped.
 	indent := strings.Repeat(" ", countLeadingSpaces(lines[0]))
 
+	// Rule 3: the prefix goes on in front of each line and nothing is trimmed.
 	var result []string
 	for _, ol := range outLines {
 		if ol == "" {
