@@ -324,6 +324,20 @@ func isBlockquotePrefix(line string) bool {
 
 // stripBlockquotePrefix removes one level of blockquote prefix from a line.
 // Returns the stripped line and true if a prefix was found.
+// hasTabIndent reports whether the line's leading whitespace contains a tab.
+func hasTabIndent(line string) bool {
+	for i := 0; i < len(line); i++ {
+		switch line[i] {
+		case '\t':
+			return true
+		case ' ':
+		default:
+			return false
+		}
+	}
+	return false
+}
+
 func stripBlockquotePrefix(line string) (string, bool) {
 	indent := countLeadingSpaces(line)
 	if indent > 3 {

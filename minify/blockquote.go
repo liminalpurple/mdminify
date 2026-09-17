@@ -21,6 +21,15 @@ func processBlockquote(lines []string, depth int) ([]string, error) {
 			// Lazy continuation — line without > that continues a blockquote paragraph.
 			inner = append(inner, line)
 		}
+		// A tab's width depends on the column it lands in, so rewriting the
+		// prefix around it changes how much indentation it represents: ">>\t0"
+		// is text, while the normalised "> > \t0" puts the tab at column 4 and
+		// makes it an indented code block. Expanding the tab would need the
+		// absolute column, which is not tracked inside a container, so a quote
+		// indented with tabs is passed through untouched instead.
+		if hasTabIndent(inner[len(inner)-1]) {
+			return lines, nil
+		}
 	}
 
 	// Recursing without having removed anything would not terminate. Callers
