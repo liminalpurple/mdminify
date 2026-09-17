@@ -114,6 +114,12 @@ var cases = map[string]string{
 	"bq-tab-quote":         ">>\t> q\n",
 	// A hard break at the end of a list item, lazily continued from outside it.
 	"list-item-hard-break": "* 0  \n0\n",
+	// Blank lines inside an indented code block are content, including when a
+	// heading precedes the block.
+	"code-blanks-after-atx":  "#\n    0\n\n\n    0\n",
+	"code-blanks-after-text": "# h\n    0\n\n\n    0\n",
+	"code-blanks-after-rule": "---\n    0\n\n\n    0\n",
+	"code-blanks-bare":       "    0\n\n\n    0\n",
 	// A link reference definition whose label runs onto the next line, so the
 	// closing "]:" is not on the line that opens it.
 	"linkref-split-label":    "[\n0]:0\n0\n",
