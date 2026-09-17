@@ -18,7 +18,7 @@ import (
 // document in memory, though blockquote content is buffered per-block for
 // recursive processing.
 func Minify(r io.Reader, w io.Writer) error {
-	return minifyDepth(r, w, 0)
+	return minifyDepth(r, w, 0, false)
 }
 
 // maxContainerDepth bounds how far blockquotes and list items may nest before
@@ -28,9 +28,9 @@ func Minify(r io.Reader, w io.Writer) error {
 // line of thousands of repeated list markers, from exhausting the stack.
 const maxContainerDepth = 64
 
-func minifyDepth(r io.Reader, w io.Writer, depth int) error {
+func minifyDepth(r io.Reader, w io.Writer, depth int, inListItem bool) error {
 	scanner := bufio.NewScanner(r)
-	m := &minifier{w: w, depth: depth}
+	m := &minifier{w: w, depth: depth, inListItem: inListItem}
 	lineNum := 0
 
 	for scanner.Scan() {
@@ -63,6 +63,12 @@ type minifier struct {
 	w     io.Writer
 	state state
 	depth int // container nesting depth, for the recursion guard
+
+	// inListItem is true while minifying the content of a list item, at any
+	// nesting depth beneath it. A blank line between two blocks is insignificant
+	// at the top level but marks the containing list loose when it falls inside
+	// an item, so blank-line suppression is disabled there.
+	inListItem bool
 
 	fence fenceInfo // current fenced code block info
 
@@ -499,7 +505,7 @@ func (m *minifier) flushBlockquote() error {
 	if len(m.bqBuf) == 0 {
 		return nil
 	}
-	lines, err := processBlockquote(m.bqBuf, m.depth)
+	lines, err := processBlockquote(m.bqBuf, m.depth, m.inListItem)
 	m.bqBuf = nil
 	if err != nil {
 		return err
@@ -525,7 +531,11 @@ func (m *minifier) emitContent(line string, followsHeading bool) error {
 	// Flush pending blank unless suppressed.
 	if m.pendingBlank {
 		m.pendingBlank = false
-		suppress := m.lastWasHeadingLike && followsHeading &&
+		// A blank line between a heading and a following block carries no
+		// meaning at the top level, but inside a list item it makes the
+		// containing list loose, which wraps every item's content in <p>.
+		// Removing it there would change the rendering, so it is kept.
+		suppress := !m.inListItem && m.lastWasHeadingLike && followsHeading &&
 			(!m.lastHeadingWasParagraph || canInterruptParagraph(line))
 		if !suppress {
 			if _, err := io.WriteString(m.w, "\n"); err != nil {

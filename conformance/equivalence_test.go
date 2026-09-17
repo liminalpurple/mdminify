@@ -114,6 +114,8 @@ var cases = map[string]string{
 	"bq-tab-quote":         ">>\t> q\n",
 	// A hard break at the end of a list item, lazily continued from outside it.
 	"list-item-hard-break": "* 0  \n0\n",
+	// A blank line inside a list item makes the containing list loose.
+	"list-item-loose-blank": "* a\n  # 0\n   \n  * 0\n",
 	// A whitespace-only header cell carries alignment an empty one does not.
 	"table-blank-header-cell": "|  | \n|-: \n",
 	"table-empty-header-cell": "||\n|-:|\n",

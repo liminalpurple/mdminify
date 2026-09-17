@@ -153,7 +153,7 @@ func processListItem(lines []string, depth int) ([]string, bool, error) {
 	}
 
 	var buf bytes.Buffer
-	if err := minifyDepth(strings.NewReader(strings.Join(inner, "\n")+"\n"), &buf, depth+1); err != nil {
+	if err := minifyDepth(strings.NewReader(strings.Join(inner, "\n")+"\n"), &buf, depth+1, true); err != nil {
 		return nil, false, err
 	}
 	// Minify emits exactly one trailing newline, so only that one is removed.

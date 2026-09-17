@@ -8,7 +8,7 @@ import (
 // processBlockquote takes a slice of blockquote lines (with > prefix still
 // present), strips one level of prefix, recursively minifies the inner
 // content, then re-adds the > prefix.
-func processBlockquote(lines []string, depth int) ([]string, error) {
+func processBlockquote(lines []string, depth int, inListItem bool) ([]string, error) {
 	// Strip one level of > prefix.
 	// A tab's width depends on the column it lands in, so rewriting any marker
 	// ahead of one changes how much indentation it represents: ">> \t0" is a
@@ -47,7 +47,7 @@ func processBlockquote(lines []string, depth int) ([]string, error) {
 	// Recursively minify the inner content.
 	innerText := strings.Join(inner, "\n") + "\n"
 	var buf bytes.Buffer
-	if err := minifyDepth(strings.NewReader(innerText), &buf, depth+1); err != nil {
+	if err := minifyDepth(strings.NewReader(innerText), &buf, depth+1, inListItem); err != nil {
 		return nil, err
 	}
 
