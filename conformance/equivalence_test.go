@@ -99,6 +99,23 @@ func TestTestdataEquivalence(t *testing.T) {
 // cases covers constructs that golden files do not currently reach. Keep the
 // names stable: knownBroken refers to them.
 var cases = map[string]string{
+	// A tab in a blockquote prefix: its width depends on the column it lands
+	// in, so every marker rewritten ahead of it moves that column.
+	"bq-tab-nested":        ">>\t0\n",
+	"bq-tab-nested-space":  ">> \t0\n",
+	"bq-tab-nested-2space": ">>  \t0\n",
+	"bq-tab-single":        ">\t0\n",
+	"bq-tab-double":        ">>\t\t0\n",
+	"bq-tab-indented":      "  >>\t0\n",
+	"bq-tab-multiline":     ">>\tx\n>>\ty\n",
+	"bq-tab-list":          ">\t- a\n",
+	"bq-tab-heading":       ">>\t# h\n",
+	"bq-tab-fence":         ">>\t```\n>>\tc\n",
+	"bq-tab-quote":         ">>\t> q\n",
+	// A hard break at the end of a list item, lazily continued from outside it.
+	"list-item-hard-break": "* 0  \n0\n",
+	// A link reference definition whose destination is on the next line.
+	"linkref-split":        "[0]:\n0\n0\n",
 	"nested-list-4-space":  "- top level\n    - nested item\n        - deeper item\n- second top\n",
 	"nested-list-2-space":  "- top level\n  - nested item\n- second top\n",
 	"nested-list-ordered":  "1. ordered\n    1. nested under ordered\n2. second\n",
