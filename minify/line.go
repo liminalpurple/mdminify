@@ -356,6 +356,25 @@ func hasTabInPrefix(line string) bool {
 	return false
 }
 
+// blockquoteMarkerStyle reports how the line spells its blockquote marker:
+// tight when content follows the > immediately, spaced when a space does.
+// A line with no marker, or a marker with nothing after it, is neither.
+func blockquoteMarkerStyle(line string) (tight, spaced bool) {
+	indent := countLeadingSpaces(line)
+	if indent > 3 || indent >= len(line) || line[indent] != '>' {
+		return false, false
+	}
+	rest := line[indent+1:]
+	switch {
+	case rest == "":
+		return false, false
+	case rest[0] == ' ':
+		return false, true
+	default:
+		return true, false
+	}
+}
+
 func stripBlockquotePrefix(line string) (string, bool) {
 	indent := countLeadingSpaces(line)
 	if indent > 3 {
