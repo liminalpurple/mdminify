@@ -15,7 +15,13 @@ func TestSquashTableRow(t *testing.T) {
 		{"|:---------|----:|:--------:|", true, "|:-|-:|:-:|"},
 		{"| a | b |", false, "|a|b|"},
 		{`| a \| b | c |`, false, `|a \| b|c|`},
-		{"| | |", false, "|||"},
+		// A whitespace-only cell keeps one space: emptying it changes the
+		// rendering, because "|  |" over "|-:|" is right-aligned and "||" over
+		// the same delimiter row is not. A cell that arrives empty stays empty,
+		// so the distinction survives in both directions.
+		{"| | |", false, "| | |"},
+		{"||", false, "||"},
+		{"|||", false, "|||"},
 		// Separator-shaped text in a body cell is content, not alignment.
 		{"| --- | thematic break |", false, "|---|thematic break|"},
 		{"| :-: | centred |", false, "|:-:|centred|"},
