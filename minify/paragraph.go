@@ -5,6 +5,11 @@ import "strings"
 // paragraphBuffer accumulates lines and flushes them as unwrapped paragraphs.
 type paragraphBuffer struct {
 	lines []string
+
+	// headerLast marks the final buffered line as a table header, because the
+	// line that follows it — and forced this flush — is a delimiter row. The
+	// buffer cannot see that line, so the caller says so.
+	headerLast bool
 }
 
 // add appends a line to the buffer.
@@ -64,8 +69,12 @@ func (p *paragraphBuffer) flush() []string {
 
 		// A line with a delimiter row after it is a table header, so it must
 		// start its own line. canJoin sees only the two lines being joined and
-		// cannot look ahead, so the check belongs here.
-		header := i+1 < len(p.lines) && isTableSeparator(p.lines[i+1])
+		// cannot look ahead, so the check belongs here. The delimiter row may
+		// also be the line that follows the buffer, which headerLast reports:
+		// "0 / 0 / |-" is a paragraph and a one-column table, and joining the
+		// two "0" lines would make the header read "0 0".
+		header := (i+1 < len(p.lines) && isTableSeparator(p.lines[i+1])) ||
+			(p.headerLast && i == len(p.lines)-1)
 
 		if header || sticky || !canJoin(p.lines[i-1], line) {
 			// Not a warranted join: emit what we have and start again,
@@ -104,6 +113,7 @@ func (p *paragraphBuffer) flush() []string {
 	// the two spaces are kept.
 
 	p.lines = p.lines[:0]
+	p.headerLast = false
 	return result
 }
 

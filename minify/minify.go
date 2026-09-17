@@ -319,6 +319,11 @@ func (m *minifier) processLine(line string, lineNum int) error {
 		}
 		// Start buffering a potential table.
 		m.tableAfterParagraph = len(m.para.lines) > 0
+		// A delimiter row arriving here makes the last buffered line a table
+		// header, which must not be joined onto the line before it.
+		if isTableSeparator(line) {
+			m.para.headerLast = true
+		}
 		if err := m.flushParagraph(); err != nil {
 			return err
 		}
