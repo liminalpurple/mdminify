@@ -181,6 +181,14 @@ func processListItem(lines []string, depth int) ([]string, bool, error) {
 	result := make([]string, 0, len(outLines))
 	for i, ol := range outLines {
 		switch {
+		case i == 0 && strings.TrimSpace(ol) == "":
+			// An item whose content is empty would otherwise leave a marker
+			// followed by its padding, so the padding is dropped. Only this
+			// case may be trimmed: trailing whitespace on a line that does
+			// have content is a hard break, and the line after it — which may
+			// lazily continue this item's paragraph from outside the buffer —
+			// then depends on it.
+			result = append(result, strings.Repeat(" ", prefix.indent)+prefix.marker)
 		case i == 0:
 			result = append(result, strings.Repeat(" ", prefix.indent)+prefix.marker+
 				strings.Repeat(" ", prefix.pad)+ol)
@@ -189,10 +197,6 @@ func processListItem(lines []string, depth int) ([]string, bool, error) {
 		default:
 			result = append(result, pad+ol)
 		}
-	}
-	// An item whose content is empty leaves a trailing marker with padding.
-	if len(result) > 0 {
-		result[0] = strings.TrimRight(result[0], " ")
 	}
 	return result, looseBlank, nil
 }
