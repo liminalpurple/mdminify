@@ -87,10 +87,15 @@ func containerEndsInBlank(inner []string) bool {
 
 // endsInOpenFence reports whether the lines finish inside a fenced code block
 // that was never closed.
+//
+// The fence may be opened inside a container nested within these lines, where
+// a marker sits in front of the backticks and hides them from a scan of the
+// lines as they stand, so each line is reduced to its content first.
 func endsInOpenFence(lines []string) bool {
 	var fence fenceInfo
 	open := false
 	for _, l := range lines {
+		l = containerContent(l)
 		if open {
 			if isClosingFence(l, fence) {
 				open = false
@@ -102,6 +107,27 @@ func endsInOpenFence(lines []string) bool {
 		}
 	}
 	return open
+}
+
+// containerContent strips any nesting of blockquote and list item markers from
+// the line, leaving the content they hold. The result is measured relative to
+// the innermost container, which is where a fence's own indentation counts.
+func containerContent(line string) string {
+	for {
+		if s, ok := stripBlockquotePrefix(line); ok {
+			line = s
+			continue
+		}
+		p, ok := parseListItemPrefix(line)
+		if !ok {
+			return line
+		}
+		off := p.contentOffset()
+		if off >= len(line) {
+			return ""
+		}
+		line = line[off:]
+	}
 }
 
 // minifyInner minifies a container's stripped content one level deeper and
