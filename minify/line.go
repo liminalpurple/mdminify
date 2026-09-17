@@ -454,6 +454,18 @@ func isHTMLBlockStart(line string) bool {
 	return false
 }
 
+// opensLinkRefLabel reports whether the line may open a link reference
+// definition whose label runs onto the next line. The label begins with "[",
+// and when nothing closes it on this line the "]:" that isLinkRefDef looks for
+// cannot be here to be found.
+//
+// Requiring the absence of any "]" keeps ordinary prose out: a line opening
+// "[text](url)" closes its bracket and is left alone.
+func opensLinkRefLabel(line string) bool {
+	s := strings.TrimLeft(line, " ")
+	return len(s) > 0 && s[0] == '[' && !strings.ContainsRune(s, ']')
+}
+
 // isLinkRefDef returns true if the line looks like a link reference definition:
 // [label]: url "title"
 func isLinkRefDef(line string) bool {

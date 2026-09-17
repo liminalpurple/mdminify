@@ -114,6 +114,10 @@ var cases = map[string]string{
 	"bq-tab-quote":         ">>\t> q\n",
 	// A hard break at the end of a list item, lazily continued from outside it.
 	"list-item-hard-break": "* 0  \n0\n",
+	// A link reference definition whose label runs onto the next line, so the
+	// closing "]:" is not on the line that opens it.
+	"linkref-split-label":    "[\n0]:0\n0\n",
+	"linkref-inline-bracket": "[text](/u) and more\nwrapped text\n",
 	// A delimiter row arriving after the paragraph buffer makes its last line a
 	// table header, which must not be joined onto the line before it.
 	"header-after-buffer":   "0\n0\n|-\n",
