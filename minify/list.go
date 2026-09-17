@@ -69,6 +69,20 @@ func parseListItemPrefix(line string) (listItemPrefix, bool) {
 	return listItemPrefix{indent: indent, marker: marker, pad: pad}, true
 }
 
+// listItemHoldsIndentedCode reports whether the line is a list item whose
+// content begins five or more columns after the marker, which makes that
+// content an indented code block within the item rather than a paragraph.
+// Trailing whitespace inside code is content, so such a line must be passed
+// through exactly as it arrived.
+func listItemHoldsIndentedCode(line string) bool {
+	p, ok := parseListItemPrefix(line)
+	if !ok {
+		return false
+	}
+	rest := line[p.indent+len(p.marker):]
+	return strings.TrimSpace(rest) != "" && countLeadingSpaces(rest) > 4
+}
+
 // interruptsParagraph reports whether an item opening with this prefix may
 // begin a list in the middle of a paragraph. CommonMark allows it only when
 // the item has content and, if ordered, is numbered 1 — otherwise an ordinary

@@ -114,6 +114,8 @@ var cases = map[string]string{
 	"bq-tab-quote":         ">>\t> q\n",
 	// A hard break at the end of a list item, lazily continued from outside it.
 	"list-item-hard-break": "* 0  \n0\n",
+	// A list item holding indented code, where trailing space is content.
+	"list-item-code-space": ">\n*     0 \n",
 	// A pipeless single-column table whose body rows must stay separate.
 	"table-pipeless-body": "0\n-:\n0\n0\n",
 	// A link reference definition whose destination is on the next line.
