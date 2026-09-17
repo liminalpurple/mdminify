@@ -60,7 +60,12 @@ func processBlockquote(lines []string, depth int, inListItem bool) ([]string, er
 	// A blank line ending the quote closes its paragraph. Minify drops a
 	// trailing blank, so it is restored here: without it a following
 	// unprefixed line would be read as a lazy continuation of the quote.
-	if n := len(inner); n > 0 && strings.TrimSpace(inner[n-1]) == "" &&
+	//
+	// Inside an unclosed fence that line is code content rather than a blank
+	// closing the quote, and Minify keeps it, so restoring one would add a
+	// line that was never there. processListItem draws the same distinction.
+	if n := len(inner); n > 0 && !endsInOpenFence(inner) &&
+		strings.TrimSpace(inner[n-1]) == "" &&
 		len(outLines) > 0 && outLines[len(outLines)-1] != "" {
 		outLines = append(outLines, "")
 	}
