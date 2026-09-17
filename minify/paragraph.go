@@ -31,7 +31,13 @@ func (p *paragraphBuffer) flush() []string {
 	// but the join that matters comes after it, where both ends look like
 	// plain text. The construct is not modelled, so once one may have opened,
 	// the rest of the buffer is passed through rather than guessed at.
-	linkRef := false
+	//
+	// A delimiter row is sticky for the same reason. A single-column table
+	// needs no pipe at all, so "0" over "-:" over two body rows arrives here
+	// as four plain lines; joining the body rows merges two table rows into
+	// one, and the pair being joined shows nothing of the delimiter row that
+	// made them rows. Once either construct may have opened, joining stops.
+	sticky := false
 
 	for i, line := range p.lines {
 		// A line indented four or more columns may be indented code, where
@@ -46,8 +52,8 @@ func (p *paragraphBuffer) flush() []string {
 			trimmed = line
 		}
 
-		if isLinkRefDef(line) {
-			linkRef = true
+		if isLinkRefDef(line) || isTableSeparator(line) {
+			sticky = true
 		}
 
 		if i == 0 {
@@ -60,7 +66,7 @@ func (p *paragraphBuffer) flush() []string {
 		// cannot look ahead, so the check belongs here.
 		header := i+1 < len(p.lines) && isTableSeparator(p.lines[i+1])
 
-		if header || linkRef || !canJoin(p.lines[i-1], line) {
+		if header || sticky || !canJoin(p.lines[i-1], line) {
 			// Not a warranted join: emit what we have and start again,
 			// leaving this line exactly as it arrived.
 			result = append(result, current.String())
