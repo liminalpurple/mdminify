@@ -114,6 +114,10 @@ var cases = map[string]string{
 	"bq-tab-quote":         ">>\t> q\n",
 	// A hard break at the end of a list item, lazily continued from outside it.
 	"list-item-hard-break": "* 0  \n0\n",
+	// A delimiter row arriving after the paragraph buffer makes its last line a
+	// table header, which must not be joined onto the line before it.
+	"header-after-buffer":   "0\n0\n|-\n",
+	"header-after-buffer-2": "text\nheader\n| - |\n| 1 |\n",
 	// A lazy continuation splits a quote's buffer, leaving the blank line that
 	// separates its paragraphs at the start of the second block.
 	"quote-lazy-split":    ">0\n0\n>\n>00\n",
