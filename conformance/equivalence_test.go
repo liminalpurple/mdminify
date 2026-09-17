@@ -114,6 +114,13 @@ var cases = map[string]string{
 	"bq-tab-quote":         ">>\t> q\n",
 	// A hard break at the end of a list item, lazily continued from outside it.
 	"list-item-hard-break": "* 0  \n0\n",
+	// A tight blockquote marker changes goldmark's inline parsing, so its
+	// spelling is preserved rather than normalised.
+	"quote-tight-emphasis": ">*0\n>*\n",
+	"quote-tight-text":     ">quoted\n>more\n",
+	"quote-tight-nested":   ">>*0\n>>*\n",
+	"quote-mixed-spelling": "> *0\n>*\n",
+	"quote-tight-indented": ">- a\n>  - b\n",
 	// A tab after a list marker is still indentation, so rewriting an enclosing
 	// quote's prefix moves it.
 	"quote-marker-tab":      ">*   \t00\n",

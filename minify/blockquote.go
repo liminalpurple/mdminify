@@ -10,6 +10,26 @@ func processBlockquote(lines []string, depth int, inListItem bool) ([]string, er
 		return lines, nil
 	}
 
+	// The marker's spelling is preserved rather than normalised. ">x" and
+	// "> x" hold the same content, because CommonMark makes the space after >
+	// optional, but goldmark parses them differently once a second line is
+	// involved: ">*0" over ">*" renders as emphasis while "> *0" over "> *"
+	// renders as literal text. Rewriting the marker can therefore change the
+	// rendering, and normalising ">x" to "> x" also added a byte to every
+	// line, so the spelling the input used is kept.
+	//
+	// A block mixing the two spellings has no single spelling to keep, so it
+	// is passed through rather than having one chosen for it.
+	tight, spaced := false, false
+	for _, line := range lines {
+		t, s := blockquoteMarkerStyle(line)
+		tight = tight || t
+		spaced = spaced || s
+	}
+	if tight && spaced {
+		return lines, nil
+	}
+
 	// Strip one level of > prefix.
 	var inner []string
 	stripped := false
@@ -49,13 +69,26 @@ func processBlockquote(lines []string, depth int, inListItem bool) ([]string, er
 	// top-level quote whose indent could safely be dropped.
 	indent := strings.Repeat(" ", countLeadingSpaces(lines[0]))
 
+	// A tight marker cannot carry content that begins with a space, because
+	// re-parsing would consume that space as the marker's own: ">" plus
+	// "  - b" reads back as " - b". Such a block is passed through.
+	marker := "> "
+	if tight {
+		for _, ol := range outLines {
+			if strings.HasPrefix(ol, " ") {
+				return lines, nil
+			}
+		}
+		marker = ">"
+	}
+
 	// Rule 3: the prefix goes on in front of each line and nothing is trimmed.
 	var result []string
 	for _, ol := range outLines {
 		if ol == "" {
 			result = append(result, indent+">")
 		} else {
-			result = append(result, indent+"> "+ol)
+			result = append(result, indent+marker+ol)
 		}
 	}
 	return result, nil
