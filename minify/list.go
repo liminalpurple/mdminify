@@ -1,9 +1,6 @@
 package minify
 
-import (
-	"bytes"
-	"strings"
-)
+import "strings"
 
 // listItemPrefix describes the marker that opens a list item.
 type listItemPrefix struct {
@@ -125,19 +122,10 @@ func processListItem(lines []string, depth int) ([]string, bool, error) {
 	}
 	offset := prefix.contentOffset()
 
-	// A tab's width depends on the column it lands in, so dedenting an item's
-	// lines to the content offset and re-indenting them moves any tab in that
-	// indentation to a different column, changing how much indentation it
-	// represents. The absolute columns are not tracked inside a container, so
-	// an item indented with tabs is passed through untouched — the same
-	// treatment processBlockquote gives a tab in its own prefix.
-	if hasTabInPrefix(lines[0][prefix.indent+len(prefix.marker):]) {
+	// The marker itself is not indentation, so the opening line is inspected
+	// from just after it.
+	if containerTabsUnsafe(lines, prefix.indent+len(prefix.marker)) {
 		return lines, false, nil
-	}
-	for _, line := range lines[1:] {
-		if hasTabInPrefix(line) {
-			return lines, false, nil
-		}
 	}
 
 	inner := make([]string, 0, len(lines))
@@ -151,30 +139,24 @@ func processListItem(lines []string, depth int) ([]string, bool, error) {
 		inner = append(inner, dedent(line, offset))
 	}
 
-	// A blank line ending an item normally falls outside it and marks the list
-	// as loose. Inside an unclosed fence it is code content instead, so the
-	// item keeps it and the list is not loose on its account.
+	// A blank line ending an item falls outside it and marks the list loose.
 	looseBlank := false
-	if !endsInOpenFence(inner) {
+	if containerEndsInBlank(inner) {
 		end := len(inner)
 		for end > 0 && strings.TrimSpace(inner[end-1]) == "" {
 			end--
 		}
-		looseBlank = end < len(inner) && end > 0
+		looseBlank = end > 0
 		inner = inner[:end]
 	}
 	if len(inner) == 0 {
 		return lines, false, nil
 	}
 
-	var buf bytes.Buffer
-	if err := minifyDepth(strings.NewReader(strings.Join(inner, "\n")+"\n"), &buf, depth+1, true); err != nil {
+	outLines, err := minifyInner(inner, depth, true)
+	if err != nil {
 		return nil, false, err
 	}
-	// Minify emits exactly one trailing newline, so only that one is removed.
-	// Trimming every trailing newline would discard a final blank line, which
-	// is content when the item ends inside an open fence.
-	outLines := strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
 
 	// Leading blank lines inside an item are not content. One is just the
 	// empty remainder of the marker line; two or more mean a real blank line
@@ -228,25 +210,6 @@ func processListItem(lines []string, depth int) ([]string, bool, error) {
 		}
 	}
 	return result, looseBlank, nil
-}
-
-// endsInOpenFence reports whether the lines finish inside a fenced code block
-// that was never closed.
-func endsInOpenFence(lines []string) bool {
-	var fence fenceInfo
-	open := false
-	for _, l := range lines {
-		if open {
-			if isClosingFence(l, fence) {
-				open = false
-			}
-			continue
-		}
-		if f, ok := isOpeningFence(l); ok {
-			fence, open = f, true
-		}
-	}
-	return open
 }
 
 // dedent removes up to n columns of leading whitespace, expanding tabs the way
