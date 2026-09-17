@@ -298,6 +298,69 @@ func TestIdempotent(t *testing.T) {
 }
 
 // FuzzHTMLEquivalence explores the same contract over generated input.
+// goldmarkQuoteQuirk reports whether goldmark renders src differently from the
+// same document with every blockquote marker spelled "> " instead of ">".
+//
+// CommonMark makes the space after > optional, so the two are one document,
+// but goldmark parses emphasis across a line break differently between them:
+// ">>*0" over ">>*!" renders as <em>0</em>!, while "> > *0" over "> > *!",
+// ">>*0 *!" and the unquoted "*0" over "*!" all render the literal text. The
+// spec agrees with the majority — a * preceded by a newline is not
+// right-flanking and cannot close emphasis — so the tight-marker reading is
+// the one that is wrong.
+//
+// Where goldmark contradicts itself it cannot be the oracle for this
+// contract, so the fuzz target skips such inputs rather than reporting a
+// violation mdminify did not commit. The rewrite is not applied inside fenced
+// code, where a leading > is content, so a fence holding one is skipped too:
+// losing a little coverage is the safe direction for an oracle problem.
+func goldmarkQuoteQuirk(t *testing.T, src string) bool {
+	t.Helper()
+	spaced := spaceQuoteMarkers(src)
+	if spaced == src {
+		return false
+	}
+	return render(t, src) != render(t, spaced)
+}
+
+// spaceQuoteMarkers rewrites each line's leading run of blockquote markers so
+// every > is followed by a space, leaving the rest of the line alone.
+func spaceQuoteMarkers(src string) string {
+	lines := strings.Split(src, "\n")
+	for i, line := range lines {
+		j := 0
+		for j < len(line) && line[j] == ' ' {
+			j++
+		}
+		var b strings.Builder
+		b.WriteString(line[:j])
+		changed := false
+		for j < len(line) && line[j] == '>' {
+			b.WriteByte('>')
+			j++
+			if j < len(line) && line[j] != ' ' {
+				b.WriteByte(' ')
+				changed = true
+			}
+		}
+		if changed {
+			lines[i] = b.String() + line[j:]
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// TestGoldmarkQuoteQuirkStillPresent pins the upstream inconsistency that
+// goldmarkQuoteQuirk exists to work around, so a goldmark fix or a dependency
+// bump reports that the skip can go rather than passing silently.
+func TestGoldmarkQuoteQuirkStillPresent(t *testing.T) {
+	const src = ">>*0\n>>*!\n"
+	if !goldmarkQuoteQuirk(t, src) {
+		t.Errorf("goldmark now renders %q consistently with its spaced-marker "+
+			"form — remove goldmarkQuoteQuirk and its use in the fuzz target", src)
+	}
+}
+
 func FuzzHTMLEquivalence(f *testing.F) {
 	// Seed only with cases that currently hold. Entries removed from
 	// knownBroken rejoin the corpus automatically.
@@ -331,6 +394,10 @@ func FuzzHTMLEquivalence(f *testing.F) {
 		// guarantee as a contract violation.
 		if !strings.HasSuffix(src, "\n") {
 			src += "\n"
+		}
+		// goldmark cannot be the oracle where it contradicts itself.
+		if goldmarkQuoteQuirk(t, src) {
+			t.Skip()
 		}
 		var buf strings.Builder
 		if err := minify.Minify(strings.NewReader(src), &buf); err != nil {
