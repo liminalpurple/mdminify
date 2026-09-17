@@ -15,7 +15,12 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          # Released binaries are built with the newest toolchain, not with
+          # the go directive's version. That directive is the minimum a
+          # consumer needs to build the library, while the toolchain that
+          # compiles these binaries is where security and performance fixes
+          # actually live — building with 1.21 would ship without them.
+          go-version: stable
 
       - name: Test
         run: go test ./...
