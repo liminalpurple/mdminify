@@ -46,7 +46,8 @@ func (p *paragraphBuffer) flush() []string {
 		// a column we are not tracking, which can be far enough past the
 		// item's content offset to be code within it. Either way the line is
 		// never joined (see canJoin), so it is emitted exactly as it arrived.
-		verbatim := indentWidth(line) >= 4 || unparseableListItem(line)
+		verbatim := indentWidth(line) >= 4 || unparseableListItem(line) ||
+			listItemHoldsIndentedCode(line)
 		trimmed := trimTrailingWhitespace(line)
 		if verbatim {
 			trimmed = line
