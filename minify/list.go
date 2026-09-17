@@ -72,12 +72,25 @@ func parseListItemPrefix(line string) (listItemPrefix, bool) {
 // Trailing whitespace inside code is content, so such a line must be passed
 // through exactly as it arrived.
 func listItemHoldsIndentedCode(line string) bool {
-	p, ok := parseListItemPrefix(line)
-	if !ok {
-		return false
+	for {
+		p, ok := parseListItemPrefix(line)
+		if !ok {
+			return false
+		}
+		rest := line[p.indent+len(p.marker):]
+		if strings.TrimSpace(rest) == "" {
+			return false
+		}
+		if countLeadingSpaces(rest) > 4 {
+			return true
+		}
+		// The item's content may itself be an item holding indented code,
+		// which the outer marker hides from a single-level check: in
+		// "* *     0 " the five spaces belong to the inner marker. Each pass
+		// strips one marker, and the content offset is always at least one
+		// column, so this terminates.
+		line = line[p.contentOffset():]
 	}
-	rest := line[p.indent+len(p.marker):]
-	return strings.TrimSpace(rest) != "" && countLeadingSpaces(rest) > 4
 }
 
 // interruptsParagraph reports whether an item opening with this prefix may
