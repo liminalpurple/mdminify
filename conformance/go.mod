@@ -5,7 +5,7 @@
 // root do not see this package.
 module github.com/liminalpurple/mdminify/conformance
 
-go 1.26.4
+go 1.26.0
 
 replace github.com/liminalpurple/mdminify => ../
 
