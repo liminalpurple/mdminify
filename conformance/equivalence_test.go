@@ -114,6 +114,13 @@ var cases = map[string]string{
 	"bq-tab-quote":         ">>\t> q\n",
 	// A hard break at the end of a list item, lazily continued from outside it.
 	"list-item-hard-break": "* 0  \n0\n",
+	// A tab after a list marker is still indentation, so rewriting an enclosing
+	// quote's prefix moves it.
+	"quote-marker-tab":      ">*   \t00\n",
+	"quote-marker-tab-dash": ">- \tx\n",
+	"quote-marker-tab-num":  ">1. \tx\n",
+	"quote-marker-tab-deep": ">>* \tx\n",
+	"quote-emphasis-tab":    "> *emphasis* \tx\n",
 	// A quote ending inside an unclosed fence: the trailing whitespace line is
 	// code content, not a blank line closing the quote.
 	"quote-open-fence-blank": ">>```\n>>  \n",
