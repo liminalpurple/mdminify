@@ -324,13 +324,16 @@ func isBlockquotePrefix(line string) bool {
 
 // stripBlockquotePrefix removes one level of blockquote prefix from a line.
 // Returns the stripped line and true if a prefix was found.
-// hasTabIndent reports whether the line's leading whitespace contains a tab.
-func hasTabIndent(line string) bool {
+// hasTabInPrefix reports whether a tab appears in the run of indentation and
+// blockquote markers opening the line, before any content. A tab there is what
+// makes a blockquote unsafe to rewrite, because its width depends on the column
+// it lands in and every marker rewritten ahead of it moves that column.
+func hasTabInPrefix(line string) bool {
 	for i := 0; i < len(line); i++ {
 		switch line[i] {
 		case '\t':
 			return true
-		case ' ':
+		case ' ', '>':
 		default:
 			return false
 		}

@@ -10,6 +10,20 @@ import (
 // content, then re-adds the > prefix.
 func processBlockquote(lines []string, depth int) ([]string, error) {
 	// Strip one level of > prefix.
+	// A tab's width depends on the column it lands in, so rewriting any marker
+	// ahead of one changes how much indentation it represents: ">> \t0" is a
+	// paragraph, while the normalised "> > \t0" pushes the tab past column 4
+	// and makes it an indented code block. Expanding the tab would need the
+	// absolute column, which is not tracked inside a container, so a quote
+	// whose prefix contains a tab is passed through untouched instead. This is
+	// checked across the whole block before anything is rewritten, because the
+	// outer level moves the column just as the inner ones do.
+	for _, line := range lines {
+		if hasTabInPrefix(line) {
+			return lines, nil
+		}
+	}
+
 	var inner []string
 	stripped := false
 	for _, line := range lines {
@@ -20,15 +34,6 @@ func processBlockquote(lines []string, depth int) ([]string, error) {
 		} else {
 			// Lazy continuation — line without > that continues a blockquote paragraph.
 			inner = append(inner, line)
-		}
-		// A tab's width depends on the column it lands in, so rewriting the
-		// prefix around it changes how much indentation it represents: ">>\t0"
-		// is text, while the normalised "> > \t0" puts the tab at column 4 and
-		// makes it an indented code block. Expanding the tab would need the
-		// absolute column, which is not tracked inside a container, so a quote
-		// indented with tabs is passed through untouched instead.
-		if hasTabIndent(inner[len(inner)-1]) {
-			return lines, nil
 		}
 	}
 
