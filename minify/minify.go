@@ -238,6 +238,11 @@ func (m *minifier) processLine(line string, lineNum int) error {
 
 	// --- INDENTED CODE BLOCK (start) ---
 	if indentWidth(line) >= 4 && m.canStartIndentedCode() {
+		// A heading may still be buffered ahead of the code; it belongs
+		// before it in the output, so it is flushed first.
+		if err := m.flushParagraph(); err != nil {
+			return err
+		}
 		m.state = stateIndentedCode
 		m.codeBuf = append(m.codeBuf, line)
 		return nil
@@ -422,12 +427,26 @@ func (m *minifier) flushParagraph() error {
 	return nil
 }
 
+// paragraphOpen reports whether the paragraph buffer holds an unfinished
+// paragraph that a following block would have to interrupt.
+//
+// A buffered ATX heading or thematic break is not one: each closes any
+// paragraph before it and cannot take an indented continuation of its own, so
+// an indented line after either opens a code block rather than joining them.
+func (m *minifier) paragraphOpen() bool {
+	if len(m.para.lines) == 0 {
+		return false
+	}
+	last := m.para.lines[len(m.para.lines)-1]
+	return !isATXHeading(last) && !isThematicBreak(last)
+}
+
 // canStartIndentedCode reports whether an indented line at this point opens an
 // indented code block. It cannot interrupt a paragraph, and anything already
 // buffered means some other block is still open.
 func (m *minifier) canStartIndentedCode() bool {
 	return m.state == stateNormal &&
-		len(m.para.lines) == 0 &&
+		!m.paragraphOpen() &&
 		len(m.bqBuf) == 0 &&
 		len(m.listBuf) == 0 &&
 		len(m.tableBuf) == 0 &&
