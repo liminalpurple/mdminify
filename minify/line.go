@@ -325,9 +325,10 @@ func isBlockquotePrefix(line string) bool {
 // stripBlockquotePrefix removes one level of blockquote prefix from a line.
 // Returns the stripped line and true if a prefix was found.
 // hasTabInPrefix reports whether a tab appears in the run of indentation and
-// blockquote markers opening the line, before any content. A tab there is what
-// makes a blockquote unsafe to rewrite, because its width depends on the column
-// it lands in and every marker rewritten ahead of it moves that column.
+// container markers opening the line, before any content. A tab there is what
+// makes a container unsafe to rewrite, because its width depends on the column
+// it lands in and every marker or indent rewritten ahead of it moves that
+// column. Both processBlockquote and processListItem decline on it.
 func hasTabInPrefix(line string) bool {
 	for i := 0; i < len(line); i++ {
 		switch line[i] {

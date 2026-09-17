@@ -114,6 +114,18 @@ var cases = map[string]string{
 	"bq-tab-quote":         ">>\t> q\n",
 	// A hard break at the end of a list item, lazily continued from outside it.
 	"list-item-hard-break": "* 0  \n0\n",
+	// A tab in a list item's indentation: dedenting and re-indenting the item
+	// would move the tab to a different column.
+	"list-tab-content":      "* \t\n\t\t0\n",
+	"list-tab-marker":       "*\t0\n",
+	"list-tab-nested":       "- a\n\t- b\n",
+	"list-tab-nested-deep":  "- a\n\t\t- b\n",
+	"list-tab-continuation": "* a\n\tcont\n",
+	"list-tab-para":         "* a\n\n\tpara\n",
+	"list-tab-pad":          "-  \tx\n",
+	"list-tab-fence":        "* a\n\t```\n\tc\n\t```\n",
+	"list-tab-in-quote":     "> * a\n> \t- b\n",
+	"list-tab-inline":       "* a\tb\n",
 	// A blank line inside a list item makes the containing list loose.
 	"list-item-loose-blank": "* a\n  # 0\n   \n  * 0\n",
 	// A whitespace-only header cell carries alignment an empty one does not.
