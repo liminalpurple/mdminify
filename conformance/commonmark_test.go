@@ -41,8 +41,6 @@ func loadSpecExamples(t *testing.T) []specExample {
 // keyed by example number. Entries must name their cause; the test asserts
 // they still fail, so a fix is reported rather than passing silently.
 var specKnownBroken = map[int]string{
-	208: "a link reference definition whose label spans several lines, so the closing " +
-		"\"]:\" is not on the line isLinkRefDef inspects",
 	616: "a raw HTML tag left open across a line break, where the unclosed tag is masked " +
 		"from hasUnclosedTag by a '>' belonging to a tag nested inside a quoted attribute " +
 		"value; separating them needs HTML tokenisation",

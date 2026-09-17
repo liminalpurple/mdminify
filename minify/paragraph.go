@@ -58,7 +58,7 @@ func (p *paragraphBuffer) flush() []string {
 			trimmed = line
 		}
 
-		if isLinkRefDef(line) || isTableSeparator(line) {
+		if isLinkRefDef(line) || opensLinkRefLabel(line) || isTableSeparator(line) {
 			sticky = true
 		}
 
