@@ -330,12 +330,26 @@ func isBlockquotePrefix(line string) bool {
 // it lands in and every marker or indent rewritten ahead of it moves that
 // column. Both processBlockquote and processListItem decline on it.
 func hasTabInPrefix(line string) bool {
-	for i := 0; i < len(line); i++ {
+	for i := 0; i < len(line); {
 		switch line[i] {
 		case '\t':
 			return true
 		case ' ', '>':
+			i++
 		default:
+			// A list marker is structure too, so scanning continues past it:
+			// a tab in the padding after the marker is indentation within the
+			// item, and rewriting an enclosing container's prefix still moves
+			// it. ">*   \t00" has no tab until after the marker, yet
+			// normalising ">*" to "> *" shifts that tab a column.
+			//
+			// Prose that begins like an ordered marker, such as "2024. ", is
+			// read as one here and costs the block its rewrite. That is a
+			// compression loss on a rare shape rather than a correctness risk.
+			if p, ok := parseListItemPrefix(line[i:]); ok {
+				i += len(p.marker)
+				continue
+			}
 			return false
 		}
 	}
