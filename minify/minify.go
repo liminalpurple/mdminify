@@ -64,6 +64,11 @@ type minifier struct {
 	state state
 	depth int // container nesting depth, for the recursion guard
 
+	// lazyList is true once a list item has been flushed by a line that lazily
+	// continues its paragraph, meaning the list is still open. It is cleared
+	// once a blank line has been emitted after it, which closes the list.
+	lazyList bool
+
 	// inListItem is true while minifying the content of a list item, at any
 	// nesting depth beneath it. A blank line between two blocks is insignificant
 	// at the top level but marks the containing list loose when it falls inside
@@ -203,6 +208,17 @@ func (m *minifier) processLine(line string, lineNum int) error {
 		}
 		if err := m.flushList(); err != nil {
 			return err
+		}
+		// A line that opens no block of its own is a lazy continuation of the
+		// item's paragraph, so the list is still open even though the item is
+		// flushed here. Lazy continuation is not modelled, and the difference
+		// matters for the blank line that may follow: a blank before the next
+		// marker marks that list loose, so it must not be suppressed.
+		//
+		// The flag is set after the flush, not before, so it applies to what
+		// follows the item rather than to the item being emitted.
+		if !startsNewBlock(line) {
+			m.lazyList = true
 		}
 		// Fall through: the line may open the next item, or end the list.
 	}
@@ -535,12 +551,14 @@ func (m *minifier) emitContent(line string, followsHeading bool) error {
 		// meaning at the top level, but inside a list item it makes the
 		// containing list loose, which wraps every item's content in <p>.
 		// Removing it there would change the rendering, so it is kept.
-		suppress := !m.inListItem && m.lastWasHeadingLike && followsHeading &&
+		suppress := !m.inListItem && !m.lazyList && m.lastWasHeadingLike &&
+			followsHeading &&
 			(!m.lastHeadingWasParagraph || canInterruptParagraph(line))
 		if !suppress {
 			if _, err := io.WriteString(m.w, "\n"); err != nil {
 				return err
 			}
+			m.lazyList = false
 		}
 	}
 	if m.started {

@@ -114,6 +114,10 @@ var cases = map[string]string{
 	"bq-tab-quote":         ">>\t> q\n",
 	// A hard break at the end of a list item, lazily continued from outside it.
 	"list-item-hard-break": "* 0  \n0\n",
+	// A lazy continuation keeps the list open, so a blank before the next
+	// marker still marks it loose.
+	"lazy-list-loose":       "0\n- 0\n0\n=\n\n-\n",
+	"lazy-list-loose-plain": "- a\ncont\n\n- b\n",
 	// A tight blockquote marker changes goldmark's inline parsing, so its
 	// spelling is preserved rather than normalised.
 	"quote-tight-emphasis": ">*0\n>*\n",
