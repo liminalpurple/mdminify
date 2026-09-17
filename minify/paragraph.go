@@ -24,6 +24,15 @@ func (p *paragraphBuffer) flush() []string {
 	var result []string
 	var current strings.Builder
 
+	// A link reference definition spans up to three lines — label, destination
+	// and title — and none of them may be joined: "[0]:" over "0" is a
+	// definition, while "[0]:" over "0 0" is an ordinary paragraph, because a
+	// title has to be quoted. canJoin declines at the definition's own line,
+	// but the join that matters comes after it, where both ends look like
+	// plain text. The construct is not modelled, so once one may have opened,
+	// the rest of the buffer is passed through rather than guessed at.
+	linkRef := false
+
 	for i, line := range p.lines {
 		// A line indented four or more columns may be indented code, where
 		// trailing whitespace is content rather than noise. So may a list item
@@ -37,6 +46,10 @@ func (p *paragraphBuffer) flush() []string {
 			trimmed = line
 		}
 
+		if isLinkRefDef(line) {
+			linkRef = true
+		}
+
 		if i == 0 {
 			current.WriteString(trimmed)
 			continue
@@ -47,7 +60,7 @@ func (p *paragraphBuffer) flush() []string {
 		// cannot look ahead, so the check belongs here.
 		header := i+1 < len(p.lines) && isTableSeparator(p.lines[i+1])
 
-		if header || !canJoin(p.lines[i-1], line) {
+		if header || linkRef || !canJoin(p.lines[i-1], line) {
 			// Not a warranted join: emit what we have and start again,
 			// leaving this line exactly as it arrived.
 			result = append(result, current.String())
