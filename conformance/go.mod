@@ -12,5 +12,5 @@ replace github.com/liminalpurple/mdminify => ../
 require (
 	github.com/liminalpurple/mdminify v0.0.0-00010101000000-000000000000
 	github.com/yuin/goldmark v1.8.7
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.62.0
 )
