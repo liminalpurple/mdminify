@@ -18,18 +18,24 @@ import (
 	"testing"
 
 	"github.com/liminalpurple/mdminify/minify"
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/v2/extension"
+	"github.com/yuin/goldmark/v2/parser"
+	"github.com/yuin/goldmark/v2/renderer/html"
 )
 
-// md renders with GFM enabled, because mdminify handles GFM tables.
-var md = goldmark.New(goldmark.WithExtensions(extension.GFM))
+// The parser and renderer have GFM enabled, because mdminify handles GFM
+// tables. goldmark v2 configures the two halves separately.
+var (
+	mdParser   = parser.New(parser.WithExtensions(extension.GFMParser))
+	mdRenderer = html.New(html.WithExtensions(extension.GFMHTMLRenderer))
+)
 
 // render converts markdown source to normalised HTML.
 func render(t *testing.T, src string) string {
 	t.Helper()
 	var buf strings.Builder
-	if err := md.Convert([]byte(src), &buf); err != nil {
+	source := []byte(src)
+	if err := mdRenderer.Render(&buf, source, mdParser.Parse(source)); err != nil {
 		t.Fatalf("rendering markdown: %v", err)
 	}
 	out, err := normaliseHTML(buf.String())
