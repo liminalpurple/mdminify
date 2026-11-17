@@ -20,7 +20,7 @@ jobs:
         with:
           go-version: stable
 
-      - uses: j178/prek-action@v3.1.0
+      - uses: j178/prek-action@v3.1.1
         env:
           SKIP: go-get-update
 
